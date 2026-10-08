@@ -62,6 +62,22 @@ beforeEach(async () => {
 })
 
 describe('홈 화면 스크립트', () => {
+  it('상세 모달은 마지막으로 연 기록의 응답만 반영한다', async () => {
+    const resolvers: Array<(html: string) => void> = []
+    fetchMock.mockImplementation(
+      () => new Promise<Response>((resolve) => resolvers.push((html) => resolve(new Response(html)))),
+    )
+    $('[data-key="bean-1"] a[data-detail]').click()
+    $('[data-key="bean-2"] a[data-detail]').click()
+    expect(resolvers).toHaveLength(2)
+    resolvers[1]('<p>두 번째</p>')
+    await vi.waitFor(() => expect($('#detail-body').innerHTML).toContain('두 번째'))
+    resolvers[0]('<p>첫 번째</p>')
+    await new Promise((r) => setTimeout(r, 10))
+    expect($('#detail-body').innerHTML).toContain('두 번째')
+    expect($('#detail-body').innerHTML).not.toContain('첫 번째')
+  })
+
   it('처음에는 원두만 최신순', () => {
     expect(visibleKeys()).toEqual(['bean-2', 'bean-1'])
     expect($('#result-count').textContent).toBe('2개')

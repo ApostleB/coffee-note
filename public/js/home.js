@@ -142,17 +142,23 @@ export function initHome(doc, deps = {}) {
   const modalBody = /** @type {HTMLElement} */ (doc.getElementById('detail-body'))
   const modal = bootstrap && modalEl ? bootstrap.Modal.getOrCreateInstance(modalEl) : null
 
+  let detailRequest = 0
+
   /** @param {string} href */
   async function openDetail(href) {
+    // 느린 응답이 뒤늦게 도착해 다른 기록을 덮어쓰지 않도록 마지막 요청만 반영한다
+    const token = ++detailRequest
     modalBody.innerHTML = SPINNER
     modal.show()
     try {
       const res = await fetchFn(`${href}?fragment=1`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      modalBody.innerHTML = await res.text()
+      const html = await res.text()
+      if (token !== detailRequest) return
+      modalBody.innerHTML = html
       initCarousels(modalBody, bootstrap)
     } catch {
-      modalBody.innerHTML = LOAD_ERROR
+      if (token === detailRequest) modalBody.innerHTML = LOAD_ERROR
     }
   }
 
