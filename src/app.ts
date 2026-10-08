@@ -23,13 +23,14 @@ export function createApp({ config, pool }: AppDeps) {
   app.use('/vendor/bootstrap-icons', express.static(vendorDir('bootstrap-icons', 'font'), staticOptions))
   app.use('/vendor/pretendard', express.static(vendorDir('pretendard', 'dist/web/variable'), staticOptions))
 
-  app.use(express.urlencoded({ extended: false, limit: '100kb' }))
-  app.use(cookieParser(config.sessionSecret))
+  // 본문 파싱 오류도 오류 페이지로 렌더링되므로 템플릿 변수는 파서보다 먼저 초기화한다
   app.use((_req, res, next) => {
     res.locals.isAdmin = false
     next()
   })
 
+  app.use(express.urlencoded({ extended: false, limit: '100kb' }))
+  app.use(cookieParser(config.sessionSecret))
   app.get('/healthz', (_req, res) => {
     res.json({ ok: true })
   })

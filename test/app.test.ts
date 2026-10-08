@@ -33,4 +33,12 @@ describe('app', () => {
     expect(res.status).toBe(200)
     expect(res.type).toBe(type)
   })
+
+  it('본문이 너무 크면 오류 페이지로 응답한다', async () => {
+    const res = await request(app).post('/healthz').type('form').send('x=' + 'a'.repeat(102401))
+    expect(res.status).toBe(413)
+    expect(res.type).toBe('text/html')
+    expect(res.text).toContain('잘못된 요청입니다')
+    expect(res.text).toContain('처음으로')
+  })
 })
