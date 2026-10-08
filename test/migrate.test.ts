@@ -4,14 +4,14 @@ import { migrate } from '../src/migrate.js'
 import { createTestPool, describeDb, TEST_SCHEMA } from './db.js'
 
 describeDb('migrate', () => {
-  let pool: Pool
+  let pool!: Pool // beforeAll이 실패하면 대입되지 않을 수 있다
 
   beforeAll(async () => {
     pool = await createTestPool()
   })
 
   afterAll(async () => {
-    await pool.end()
+    if (pool) await pool.end()
   })
 
   it('테이블을 만들고 이력을 남긴다', async () => {

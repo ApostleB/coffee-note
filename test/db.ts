@@ -23,7 +23,12 @@ export async function createTestPool(): Promise<Pool> {
     await admin.end()
   }
   const pool = createPool(url, { searchPath: TEST_SCHEMA })
-  await migrate(pool, () => {})
+  try {
+    await migrate(pool, () => {})
+  } catch (err) {
+    await pool.end()
+    throw err
+  }
   return pool
 }
 
