@@ -230,7 +230,7 @@
 .coffee-list-item[hidden] { display: none; }
 
 
-/* 원두 옵션 필터: JS가 없으면 선택지를 그대로 보여준다. */
+/* 원두 옵션 필터: 모바일은 처음부터 접힘, 데스크톱은 JS 없이도 펼침. */
 .coffee-bean-filter-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -248,5 +248,5 @@
     display: block;
     height: auto;
   }
-  .coffee-bean-filter-grid { grid-template-columns: repeat(6, minmax(0, 1fr)) auto; }
+  .coffee-bean-filter-grid { grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); }
 }

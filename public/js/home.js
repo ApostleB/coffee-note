@@ -25,18 +25,16 @@ export function initHome(doc, deps = {}) {
   const countEl = /** @type {HTMLElement} */ (doc.getElementById('result-count'))
   const emptyEl = /** @type {HTMLElement} */ (doc.getElementById('empty-state'))
   const textInput = /** @type {HTMLInputElement} */ (form.elements.namedItem('text'))
-  const scopeSelect = /** @type {HTMLSelectElement} */ (form.elements.namedItem('scope'))
   const sortSelect = /** @type {HTMLSelectElement} */ (form.elements.namedItem('sort'))
   const shopSelect = /** @type {HTMLSelectElement} */ (form.elements.namedItem('shop'))
   const decafInput = /** @type {HTMLInputElement} */ (form.elements.namedItem('decafOnly'))
   const beanFiltersEl = /** @type {HTMLElement} */ (doc.getElementById('bean-filters'))
-  const beanPanel = /** @type {HTMLElement} */ (doc.getElementById('bean-filter-panel'))
   const beanToggle = /** @type {HTMLButtonElement} */ (doc.getElementById('bean-filter-toggle'))
   const beanCount = /** @type {HTMLElement} */ (doc.getElementById('bean-filter-count'))
   const beanReset = /** @type {HTMLButtonElement} */ (doc.getElementById('bean-filter-reset'))
   const beanSelects = BEAN_FILTER_KEYS.map((key) => ({ key, select: /** @type {HTMLSelectElement} */ (form.elements.namedItem(`bf-${key}`)) }))
-  beanPanel.classList.add('collapse')
-  beanToggle.hidden = false
+  const hasBeanOptions = beanSelects.some(({ select }) => select.options.length > 1)
+  beanToggle.hidden = !hasBeanOptions
   const tabs = /** @type {HTMLElement[]} */ ([...doc.querySelectorAll('[data-scope-tab]')])
 
   /** @type {Map<string, HTMLElement>} */
@@ -46,10 +44,10 @@ export function initHome(doc, deps = {}) {
     cards.set(card.dataset.key ?? '', card)
   }
 
-  // 뒤로 가기로 돌아왔을 때 브라우저가 복원한 컨트롤 값을 그대로 쓴다
+  // 활성 탭과 브라우저가 복원한 나머지 컨트롤 값으로 시작한다
   /** @type {Query} */
   let query = {
-    scope: /** @type {Query['scope']} */ (scopeSelect.value),
+    scope: doc.querySelector('[data-scope-tab].active')?.getAttribute('data-scope-tab') === 'cafe' ? 'cafe' : 'bean',
     text: textInput.value,
     sort: /** @type {Query['sort']} */ (sortSelect.value),
     shop: shopSelect.value,
@@ -73,7 +71,6 @@ export function initHome(doc, deps = {}) {
 
   /** 범위가 바뀌었을 때 탭·정렬·가게 컨트롤을 맞춘다 */
   function syncControls() {
-    scopeSelect.value = query.scope
     for (const tab of tabs) {
       const active = tab.dataset.scopeTab === query.scope
       tab.classList.toggle('active', active)
@@ -94,7 +91,7 @@ export function initHome(doc, deps = {}) {
   }
 
   function render() {
-    beanFiltersEl.hidden = query.scope !== 'bean'
+    beanFiltersEl.hidden = query.scope !== 'bean' || !hasBeanOptions
     let appliedCount = 0
     for (const { key, select } of beanSelects) {
       select.value = query.beanFilters[key]
@@ -130,7 +127,6 @@ export function initHome(doc, deps = {}) {
   beanReset.addEventListener('click', () => update({ beanFilters: { ...DEFAULT_QUERY.beanFilters } }))
 
   textInput.addEventListener('input', () => update({ text: textInput.value }))
-  scopeSelect.addEventListener('change', () => update({ scope: /** @type {Query['scope']} */ (scopeSelect.value) }))
   sortSelect.addEventListener('change', () => update({ sort: /** @type {Query['sort']} */ (sortSelect.value) }))
   shopSelect.addEventListener('change', () => update({ shop: shopSelect.value }))
   decafInput.addEventListener('change', () => update({ decafOnly: decafInput.checked }))

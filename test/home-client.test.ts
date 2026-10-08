@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import path from 'node:path'
+import { readFile } from 'node:fs/promises'
 import ejs from 'ejs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { initHome } from '../public/js/home.js'
@@ -73,16 +74,17 @@ describe('홈 화면 스크립트', () => {
     expect($('#result-count').textContent).toBe('1개')
   })
 
-  it('전체 범위는 카페도 보여주고 종류 배지를 켠다', () => {
-    setControl('scope', 'all')
-    expect(visibleKeys()).toEqual(['cafe-1', 'bean-2', 'bean-1'])
-    expect($('#card-grid').dataset.scope).toBe('all')
+  it('범위 셀렉트와 전체 탭을 렌더링하지 않는다', () => {
+    expect(document.querySelector('select[name=scope]')).toBeNull()
+    expect([...document.querySelectorAll<HTMLElement>('[data-scope-tab]')].map(tab => tab.dataset.scopeTab)).toEqual(['bean', 'cafe'])
   })
 
   it('카페 탭: 가게 목록이 바뀌고 로스팅순은 고를 수 없다', () => {
     $('[data-scope-tab="cafe"]').click()
     expect(visibleKeys()).toEqual(['cafe-1'])
-    expect($<HTMLSelectElement>('select[name="scope"]').value).toBe('cafe')
+    expect($('#card-grid').dataset.scope).toBe('cafe')
+    expect($('[data-scope-tab="cafe"]').getAttribute('aria-current')).toBe('true')
+    expect($('[data-scope-tab="bean"]').hasAttribute('aria-current')).toBe(false)
     expect($('[data-scope-tab="cafe"]').classList.contains('active')).toBe(true)
     expect($('[data-scope-tab="bean"]').classList.contains('active')).toBe(false)
     const shopOptions = [...$<HTMLSelectElement>('select[name="shop"]').options].map((o) => o.textContent)
@@ -145,12 +147,19 @@ describe('홈 원두 옵션 필터', () => {
     expect($('#bean-filter-count').hidden).toBe(true)
     expect($<HTMLSelectElement>('[name="bf-country"]').value).toBe('')
   })
-  it.each(['cafe', 'all'])('%s 전환하면 영역 숨김·값 초기화, 원두 복귀 시 표시', (scope) => {
+  it('카페 전환하면 영역 숨김·값 초기화, 원두 복귀 시 표시', () => {
     setControl('bf-country', '케냐')
-    setControl('scope', scope)
+    setControl('shop', '나무사이로')
+    $('[data-scope-tab="cafe"]').click()
+    expect($<HTMLSelectElement>('[name=shop]').value).toBe('')
+    expect(visibleKeys()).toEqual(['cafe-1'])
     expect($('#bean-filters').hidden).toBe(true)
     for (const select of document.querySelectorAll<HTMLSelectElement>('#bean-filters select')) expect(select.value).toBe('')
-    setControl('scope', 'bean')
+    $('[data-scope-tab="bean"]').click()
+    expect([...$<HTMLSelectElement>('[name=shop]').options].map(o => o.textContent)).toEqual(['모든 가게', '나무사이로', '커피리브레'])
+    expect($<HTMLOptionElement>('option[value=roasted]').disabled).toBe(false)
+    expect($('[data-scope-tab="bean"]').getAttribute('aria-current')).toBe('true')
+    expect($('[data-scope-tab="cafe"]').hasAttribute('aria-current')).toBe(false)
     expect($('#bean-filters').hidden).toBe(false)
     expect(visibleKeys()).toEqual(['bean-2', 'bean-1'])
   })
@@ -160,7 +169,9 @@ describe('홈 원두 옵션 필터', () => {
     })
     expect([...$<HTMLSelectElement>('[name="bf-country"]').options].map(o => o.value)).toEqual(['', '<산지>'])
     expect($<HTMLSelectElement>('[name="bf-process"]').parentElement!.hidden).toBe(true)
-    expect($('#bean-filter-panel').classList.contains('collapse')).toBe(false)
+    expect($('#bean-filter-panel').classList.contains('collapse')).toBe(true)
+    expect($('#bean-filter-toggle').hidden).toBe(false)
+    expect($('#bean-filter-toggle').getAttribute('aria-expanded')).toBe('false')
     expect($('#bean-filter-toggle').getAttribute('data-bs-target')).toBe('#bean-filter-panel')
   })
   it('초기 컨트롤 복원값으로 필터링', async () => {
@@ -169,5 +180,40 @@ describe('홈 원두 옵션 필터', () => {
     initHome(document, { bootstrap: { Modal: { getOrCreateInstance: () => ({ show }) } }, fetch: fetchMock as unknown as typeof fetch })
     expect(visibleKeys()).toEqual(['bean-1'])
     expect($('#bean-filter-count').textContent).toBe('1')
+  })
+})
+
+
+describe('초기 탭과 필터 레이아웃', () => {
+  it.each(['cafe', 'none'])('초기 활성 탭 %s에서 범위를 읽고 없으면 원두를 쓴다', async (active) => {
+    document.body.innerHTML = await ejs.renderFile(path.join(VIEWS_DIR, 'home.ejs'), { ...buildHomeModel(beans, cafes), assetVersion: 't', isAdmin: false })
+    $('[data-scope-tab="bean"]').classList.remove('active')
+    if (active === 'cafe') $('[data-scope-tab="cafe"]').classList.add('active')
+    initHome(document, { bootstrap: { Modal: { getOrCreateInstance: () => ({ show }) } }, fetch: fetchMock as unknown as typeof fetch })
+    expect(visibleKeys()).toEqual(active === 'cafe' ? ['cafe-1'] : ['bean-2', 'bean-1'])
+    expect($('#bean-filters').hidden).toBe(active === 'cafe')
+  })
+
+  it.each([{ emptyBeans: [] }, { emptyBeans: [beanEntity({ country: null, process: null, roastLevel: null, variety: null, brewMethod: null, flavorTags: [] })] }])('원두 선택지가 모두 비면 SSR과 탭 왕복 후에도 패널과 토글을 숨긴다', async ({ emptyBeans }) => {
+    document.body.innerHTML = await ejs.renderFile(path.join(VIEWS_DIR, 'home.ejs'), { ...buildHomeModel(emptyBeans, cafes), assetVersion: 't', isAdmin: false })
+    expect($('#bean-filters').hidden).toBe(true)
+    expect($('#bean-filter-toggle').hidden).toBe(true)
+    initHome(document, { bootstrap: { Modal: { getOrCreateInstance: () => ({ show }) } }, fetch: fetchMock as unknown as typeof fetch })
+    $('[data-scope-tab="cafe"]').click()
+    $('[data-scope-tab="bean"]').click()
+    expect($('#bean-filters').hidden).toBe(true)
+    expect($('#bean-filter-toggle').hidden).toBe(true)
+  })
+
+  it('데스크톱에서는 JS 없이 접힘 패널을 표시하고 필터 열을 자동으로 채운다', async () => {
+    const style = document.createElement('style')
+    style.textContent = await readFile(path.resolve('public/css/app.css'), 'utf8')
+    document.head.append(style)
+    try {
+      const desktop = [...style.sheet!.cssRules].filter((rule): rule is CSSMediaRule => rule instanceof CSSMediaRule && rule.conditionText === '(min-width: 992px)')
+      const rules = desktop.flatMap(media => [...media.cssRules]).filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule)
+      expect(rules.find(rule => rule.selectorText.split(',').map(selector => selector.trim()).includes('#bean-filter-panel.collapse'))?.style.getPropertyValue('display')).toBe('block')
+      expect(rules.find(rule => rule.selectorText === '.coffee-bean-filter-grid')?.style.getPropertyValue('grid-template-columns')).toBe('repeat(auto-fit, minmax(10rem, 1fr))')
+    } finally { style.remove() }
   })
 })

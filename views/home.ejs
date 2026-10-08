@@ -24,11 +24,6 @@
       </div>
       <div class="col-12 col-lg-auto">
         <div class="coffee-toolbar__options">
-          <select name="scope" class="form-select" aria-label="검색 범위">
-            <option value="all">전체</option>
-            <option value="bean" selected>원두</option>
-            <option value="cafe">카페</option>
-          </select>
           <select name="sort" class="form-select" aria-label="정렬">
             <option value="newest" selected>최신순</option>
             <option value="oldest">오래된순</option>
@@ -50,11 +45,12 @@
         </div>
       </div>
     </div>
-    <section id="bean-filters" class="coffee-bean-filters mt-2" aria-label="원두 필터">
-      <button type="button" id="bean-filter-toggle" class="btn btn-outline-secondary coffee-bean-filter-toggle" data-bs-toggle="collapse" data-bs-target="#bean-filter-panel" aria-controls="bean-filter-panel" aria-expanded="false" hidden>
+    <% const hasBeanOptions = Object.values(beanOptions).some(values => values.length > 0) %>
+    <section id="bean-filters" class="coffee-bean-filters mt-2" aria-label="원두 필터"<%= hasBeanOptions ? '' : ' hidden' %>>
+      <button type="button" id="bean-filter-toggle" class="btn btn-outline-secondary coffee-bean-filter-toggle" data-bs-toggle="collapse" data-bs-target="#bean-filter-panel" aria-controls="bean-filter-panel" aria-expanded="false"<%= hasBeanOptions ? '' : ' hidden' %>>
         필터 <span id="bean-filter-count" class="badge bg-secondary" aria-live="polite" hidden></span>
       </button>
-      <div id="bean-filter-panel">
+      <div id="bean-filter-panel" class="collapse">
         <div class="coffee-bean-filter-grid">
           <% Object.entries({ country: '산지 국가', process: '가공', roastLevel: '로스팅', variety: '품종', brewMethod: '추출방식', flavorTag: '향미' }).forEach(([key, label]) => { %>
             <div<%= beanOptions[key].length === 0 ? ' hidden' : '' %>>
