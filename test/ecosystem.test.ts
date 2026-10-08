@@ -17,6 +17,11 @@ describe('PM2 ecosystem', () => {
     expect(app.instances).toBe(1)
   })
 
+  it('업로드 한도(메모리 버퍼 최대 300MB)보다 넉넉한 메모리 한도를 둔다', () => {
+    // 한도 끝까지 업로드해도 RSS 때문에 PM2가 요청 도중 재시작하지 않아야 한다
+    expect(app.max_memory_restart).toBe('1G')
+  })
+
   it('운영 환경과 포트 3070을 지정한다', () => {
     expect(app.env).toEqual({ NODE_ENV: 'production', PORT: 3070 })
   })
