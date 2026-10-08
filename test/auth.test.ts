@@ -126,4 +126,25 @@ describe('관리자 로그인', () => {
       .send({ password: TEST_PASSWORD })
     expect(res.status).toBe(303)
   })
+
+  it('리버스 프록시(HTTPS) 뒤: X-Forwarded-Proto가 https면 https Origin의 POST가 통과한다', async () => {
+    const res = await request(app)
+      .post('/admin/login')
+      .set('X-Forwarded-Proto', 'https')
+      .set('Host', 'coffee.example')
+      .set('Origin', 'https://coffee.example')
+      .type('form')
+      .send({ password: TEST_PASSWORD })
+    expect(res.status).toBe(303)
+  })
+
+  it('프록시가 X-Forwarded-Proto를 넘기지 않으면(nginx 설정 누락) https Origin의 로그인이 403으로 막힌다', async () => {
+    const res = await request(app)
+      .post('/admin/login')
+      .set('Host', 'coffee.example')
+      .set('Origin', 'https://coffee.example')
+      .type('form')
+      .send({ password: TEST_PASSWORD })
+    expect(res.status).toBe(403)
+  })
 })
