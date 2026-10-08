@@ -84,6 +84,24 @@ describe('prepare(beanDef)', () => {
   })
 })
 
+describe('prepare 잘못된 타입 입력', () => {
+  it('선택 문자열·날짜에 문자열이 아닌 값이 오면 한국어 메시지', () => {
+    expect(errorsOf(beanDef, { ...required, country: 123, purchasedAt: 123 })).toEqual({
+      country: '문자열을 입력하세요',
+      purchasedAt: '문자열을 입력하세요',
+    })
+  })
+
+  it('필수 문자열에 문자열이 아닌 값이 와도 한국어 메시지', () => {
+    expect(errorsOf(beanDef, { name: 123, shop: '리브레' })).toEqual({ name: '원두명 항목은 필수입니다' })
+  })
+
+  it('본문이 객체가 아니면 _ 키로 한국어 메시지', () => {
+    expect(errorsOf(beanDef, 'oops' as unknown as Record<string, unknown>)).toEqual({ _: '잘못된 입력입니다' })
+    expect(errorsOf(beanDef, [] as unknown as Record<string, unknown>)).toEqual({ _: '잘못된 입력입니다' })
+  })
+})
+
 describe('prepare(cafeVisitDef)', () => {
   it('정상 입력', () => {
     expect(

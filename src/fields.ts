@@ -106,6 +106,14 @@ export const CAFE_SECTIONS: Section[] = [
 ]
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const NOT_STRING = '문자열을 입력하세요'
+
+/** YYYY-MM-DD가 달력에 실제 있는 날짜인지 (윤년 포함) */
+function isRealDate(value: string): boolean {
+  const [y, m, d] = value.split('-').map(Number)
+  const date = new Date(Date.UTC(y, m - 1, d))
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d
+}
 
 export const toColumn = (name: string) => name.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
 export const allFields = (sections: Section[]) => sections.flatMap((s) => s.fields)
@@ -146,7 +154,7 @@ function fieldSchema(field: FieldDef): z.ZodType {
       if (field.required) {
         return z.preprocess(blankToNull, z.string({ error: `${field.label} 항목은 필수입니다` }).max(max, tooLong))
       }
-      return z.preprocess(blankToNull, z.string().max(max, tooLong).nullable())
+      return z.preprocess(blankToNull, z.string({ error: NOT_STRING }).max(max, tooLong).nullable())
     }
     case 'url':
       return z.preprocess(
@@ -157,7 +165,14 @@ function fieldSchema(field: FieldDef): z.ZodType {
           .nullable(),
       )
     case 'date':
-      return z.preprocess(blankToNull, z.string().regex(DATE_RE, '날짜는 YYYY-MM-DD 형식이어야 합니다').nullable())
+      return z.preprocess(
+        blankToNull,
+        z
+          .string({ error: NOT_STRING })
+          .regex(DATE_RE, '날짜는 YYYY-MM-DD 형식이어야 합니다')
+          .refine(isRealDate, '존재하지 않는 날짜입니다')
+          .nullable(),
+      )
     case 'int':
     case 'score':
     case 'rating': {
@@ -176,7 +191,7 @@ function fieldSchema(field: FieldDef): z.ZodType {
       return z.preprocess(
         toTagList,
         z
-          .array(z.string().max(30, '태그는 30자 이하로 입력하세요'))
+          .array(z.string({ error: NOT_STRING }).max(30, '태그는 30자 이하로 입력하세요'))
           .max(20, '태그는 20개까지 입력할 수 있습니다'),
       )
     case 'bool':
@@ -186,7 +201,9 @@ function fieldSchema(field: FieldDef): z.ZodType {
 
 /** 섹션 정의로 폼 입력 검증 스키마를 만든다. 정의에 없는 키는 버린다. */
 export function buildSchema(sections: Section[]) {
-  return z.object(Object.fromEntries(allFields(sections).map((f) => [f.name, fieldSchema(f)])))
+  return z.object(Object.fromEntries(allFields(sections).map((f) => [f.name, fieldSchema(f)])), {
+    error: '잘못된 입력입니다',
+  })
 }
 
 /** 필드 이름 → 첫 번째 오류 메시지 */

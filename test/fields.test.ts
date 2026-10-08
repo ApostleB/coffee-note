@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BEAN_SECTIONS, formValues, toColumn, toTagList } from '../src/fields.js'
+import { BEAN_SECTIONS, buildSchema, fieldErrors, formValues, toColumn, toTagList } from '../src/fields.js'
 
 describe('toColumn', () => {
   it.each([
@@ -49,4 +49,20 @@ describe('formValues', () => {
     expect(values.name).toBe('')
     expect(values.isDecaf).toBe(false)
   })
+})
+
+describe('날짜 검증', () => {
+  const schema = buildSchema(BEAN_SECTIONS)
+  const base = { name: 'a', shop: 'b' }
+  const errorOf = (purchasedAt: unknown) => {
+    const result = schema.safeParse({ ...base, purchasedAt })
+    return result.success ? null : fieldErrors(result.error).purchasedAt
+  }
+
+  it('윤년 2/29는 허용', () => expect(errorOf('2028-02-29')).toBeNull())
+  it('평년 2/29는 거부', () => expect(errorOf('2026-02-29')).toBe('존재하지 않는 날짜입니다'))
+  it('2/30은 거부', () => expect(errorOf('2026-02-30')).toBe('존재하지 않는 날짜입니다'))
+  it('13월은 거부', () => expect(errorOf('2026-13-01')).toBe('존재하지 않는 날짜입니다'))
+  it('4월 31일은 거부', () => expect(errorOf('2026-04-31')).toBe('존재하지 않는 날짜입니다'))
+  it('12월 31일은 허용', () => expect(errorOf('2026-12-31')).toBeNull())
 })
