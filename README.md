@@ -2,7 +2,7 @@
 
 원두 커핑노트와 카페 후기를 기록하는 개인 웹사이트입니다. PC·모바일 반응형 카드 그리드에서 즉시 검색·정렬할 수 있고, 관리자 화면에서 기록과 사진을 관리합니다.
 
-- 서버: Node.js 22, Express 5, TypeScript, EJS
+- 서버: Node.js 22 이상(CI는 22, 운영은 24), Express 5, TypeScript, EJS
 - UI: Bootstrap 5, Bootstrap Icons, Pretendard
 - DB: PostgreSQL / 사진: 서버 디스크(`UPLOAD_DIR`)
 
@@ -56,11 +56,13 @@ COOKIE_SECURE=true   # nginx HTTPS 적용 전에는 false
 
 ### 수동 배포
 
-로컬에서 실행합니다. 서버에 저장소가 없으면 clone한 뒤 빌드·마이그레이션·PM2 재시작·`/healthz` 확인까지 합니다.
+로컬에서 실행합니다. 서버에 저장소가 없으면 `git init` + `remote add`로 만든(`.env`가 먼저 있어도 되도록 clone을 쓰지 않습니다) 뒤 fetch·체크아웃, 빌드·마이그레이션·PM2 재시작·`/healthz` 확인까지 합니다.
 
 ```bash
-bash scripts/deploy.sh [브랜치]   # 기본 master
+bash scripts/deploy.sh [브랜치] [ref]   # 브랜치 기본 master, ref 기본 origin/<브랜치>
 ```
+
+두 번째 인자 `ref`는 서버에서 체크아웃할 커밋/ref입니다 (자동 배포는 테스트한 `github.sha`를 넘깁니다). 허용 문자 외의 값은 거부됩니다.
 
 `DEPLOY_KEY`(기본 `~/.ssh/coffee_note_deploy`), `DEPLOY_PORT`(2022), `DEPLOY_USER`(rocky), `DEPLOY_HOST`(bytebard.cloud) 환경변수로 접속 정보를 바꿀 수 있습니다.
 
@@ -76,14 +78,20 @@ bash scripts/deploy.sh [브랜치]   # 기본 master
 | `DEPLOY_SSH_KEY` | 배포용 개인키 |
 | `DEPLOY_KNOWN_HOSTS` | 서버 호스트키 (`ssh-keyscan -p <포트> <호스트>`) |
 
-### nginx / HTTPS (최초 1회, 서버에서 sudo로 직접 실행)
+### nginx / HTTPS (서버에서 sudo로 직접 실행)
 
 ```bash
 sudo bash /home/rocky/coffee-note/deploy/nginx/install.sh
 ```
 
+최초 설치 때뿐 아니라 `deploy/nginx/` 설정이 바뀌었을 때(예: certbot 갱신 챌린지가 HTTPS로 리다이렉트되던 옛 설정 교체)도 다시 실행합니다. 재실행해도 안전하지만, 실행하는 몇 초 동안 HTTP 전용 설정으로 내려가 `coffee.bytebard.cloud:443` 요청이 기본 server 블록(다른 인증서)으로 갑니다. 실패하면 이전 설정으로 복구하고, 복구도 실패하면 백업을 남기고 종료 코드 1로 끝납니다.
+
 HTTP 설정 설치 → certbot으로 `coffee.bytebard.cloud` 인증서 발급 → HTTPS 설정 적용 → 서버 `.env`의 `COOKIE_SECURE=true` 반영 및 앱 재로드까지 진행합니다. 설치 후 갱신이 되는지 `sudo certbot renew --dry-run --cert-name coffee.bytebard.cloud`로 확인하세요. `X-Forwarded-Proto` 헤더를 프록시가 넘겨야 관리자 POST가 통과합니다.
+
+### 로그인 차단
+
+같은 IP(IPv6는 /56 묶음)에서 관리자 로그인에 10회 연속 실패하면 10분간 `/admin` 전체가 429로 차단됩니다. 실패 기록은 프로세스 메모리에만 있어서, 관리자 본인이 차단됐다면 서버에서 `pm2 reload coffee-note`로 즉시 해제할 수 있습니다 (그래서 PM2는 단일 fork 프로세스로 실행합니다).
 
 ### 백업
 
-사진은 DB가 아니라 `UPLOAD_DIR`(`/data/coffee-note`)에 저장되므로 DB 백업과 별도로 이 폴더를 주기적으로 백업하세요 (예: `rsync -a rocky@bytebard.cloud:/data/coffee-note/ ./backup/`).
+DB는 `pg_dump`로 주기적으로 백업하세요 (예: `pg_dump "$DATABASE_URL" > coffee-note.sql`). 사진은 DB가 아니라 `UPLOAD_DIR`(`/data/coffee-note`)에 저장되므로 DB 백업과 별도로 이 폴더를 주기적으로 백업하세요 (예: `rsync -a rocky@bytebard.cloud:/data/coffee-note/ ./backup/`).

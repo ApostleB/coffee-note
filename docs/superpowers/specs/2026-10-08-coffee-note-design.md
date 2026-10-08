@@ -124,14 +124,15 @@ JSON API는 두지 않는다. 공개 화면은 서버 렌더링 + 브라우저 �
 - 탭: 원두 노트 | 카페 후기 (개수 배지).
 - 툴바(스크롤 시 상단 고정):
   - 검색창: 입력 즉시 필터링
-  - 검색 범위 셀렉트: 전체 / 원두 / 카페. 탭과 같은 상태를 공유한다. "전체"면 두 종류를 섞어 보여주고 카드에 원두/카페 배지 표시. 범위가 바뀌면 가게 필터는 초기화.
+  - 범위는 탭(원두 노트 / 카페 후기)으로만 전환한다. 검색 범위 셀렉트는 두지 않는다. 범위가 바뀌면 가게 필터는 초기화. (검색 로직 `scope: 'all'`은 남아 있지만 UI에서는 도달할 수 없다.)
   - 정렬 셀렉트:
     - 최신순 / 오래된순 — 원두 `purchased_at`, 카페 `visited_at` (없으면 `created_at`)
     - 점수 높은순 — 원두 `total_score / 40`, 카페 `rating / 5` (섞어 볼 때도 비교 가능하도록 비율)
     - 이름순(가나다), 가격 낮은순 / 높은순, 원두 국가순
-    - 최신 로스팅순 — 범위가 "원두"일 때만 선택 가능. 다른 범위로 바뀌면 최신순으로 되돌림
+    - 최신 로스팅순 — 원두 탭에서만 선택 가능. 카페 탭으로 바뀌면 최신순으로 되돌림
     - 값이 없는 항목은 항상 뒤로
   - 가게 셀렉트: 현재 범위의 로스터리/카페명 고유값(가나다순)
+  - 원두 필터(원두 탭에서만 표시, 여러 조건을 AND로 조합): 국가·가공·로스팅 포인트·품종·추출 방식·향미 태그 6종. 선택지는 현재 기록에 있는 고유값(가나다순)이고, 적용 중인 조건 수를 배지로 보여주며 "초기화" 버튼으로 한 번에 해제한다. 카페 탭에서는 필터 값이 유지되지만 적용되지 않는다.
   - 디카페인 스위치: 켜면 디카페인만
 - 검색 방식:
   - 서버가 모든 카드를 HTML로 렌더링하고, 카드별 검색 인덱스(제목·가게·날짜·점수·가격·국가·로스팅일·디카페인·`searchText`)를 `<script type="application/json">`으로 함께 내려준다.
@@ -148,7 +149,7 @@ JSON API는 두지 않는다. 공개 화면은 서버 렌더링 + 브라우저 �
 
 | 라우트 | 내용 |
 |---|---|
-| `GET/POST /admin/login` | 비밀번호 로그인 (IP당 분당 10회 제한) |
+| `GET/POST /admin/login` | 비밀번호 로그인. 같은 IP에서 10회 연속 실패하면 10분간 `/admin` 전체가 429(`Retry-After`)로 차단된다 |
 | `POST /admin/logout` | 로그아웃 |
 | `GET /admin/beans`, `/admin/cafe-visits` | 목록 (썸네일·제목·가게·날짜, 즉시 검색) + 새로 작성 |
 | `GET /admin/:종류/new`, `POST /admin/:종류` | 작성 |
@@ -166,7 +167,8 @@ JSON API는 두지 않는다. 공개 화면은 서버 렌더링 + 브라우저 �
 ### 인증·보안
 
 - 로그인 성공 시 만료 시각을 값으로 하는 서명 쿠키(httpOnly, SameSite=Lax, 30일) 발급. 비밀번호 비교는 SHA-256 다이제스트의 timing-safe 비교.
-- 관리자 POST는 `Origin` 헤더가 있으면 호스트 일치를 확인(SameSite에 더한 CSRF 방어).
+- 관리자 POST는 `Origin` 헤더가 있으면 프로토콜·호스트·포트 일치를 확인(SameSite에 더한 CSRF 방어). 프록시 뒤에서는 `X-Forwarded-Proto`를 기준으로 프로토콜을 판단한다.
+- 로그인 차단: 실패 횟수는 프로세스 메모리에 저장하므로 PM2는 단일 fork 프로세스로 실행하고, `pm2 reload coffee-note`로 모든 차단이 즉시 풀린다. 키는 IPv4 주소 또는 IPv6 /56 접두사(IPv4-mapped 주소는 IPv4로 정규화)이며, 로그인에 성공하면 해당 키의 실패 기록을 지운다. 저장소는 최대 10,000개 키까지 두고, 상한을 넘으면 만료된 항목부터 정리하되 활성 차단은 보존한다. 활성 차단만으로 가득 차면 새 키를 차단한다(fail-closed). `trust proxy`는 `loopback`만 신뢰하고 nginx가 `X-Forwarded-For`를 덧붙인다.
 - EJS 출력은 기본 이스케이프. JSON을 `<script>`에 넣을 때 `<`를 `<`로 이스케이프.
 - URL 필드는 http/https만 허용.
 
@@ -183,6 +185,13 @@ multer(메모리, 장당 15MB, 한 번에 20장, JPG·PNG·WebP·AVIF)로 수신
 - 존재하지 않는 페이지·기록, 잘못된 id → 404 오류 페이지
 - 그 밖의 4xx → 해당 상태의 오류 페이지, 5xx → 로그 기록 후 "서버 오류" 페이지
 
+## 배포·운영
+
+- 서버: `/home/rocky/coffee-note`, PM2 앱 `coffee-note`(fork 1개, 포트 3070, `max_memory_restart` 1G — 업로드가 메모리 버퍼에 최대 300MB까지 쌓이므로 그보다 넉넉히), 사진 저장 경로 `UPLOAD_DIR=/data/coffee-note`.
+- nginx가 `coffee.bytebard.cloud`를 `127.0.0.1:3070`으로 프록시하고 Let's Encrypt(certbot webroot) 인증서로 HTTPS를 적용한다. `client_max_body_size 300m`. 설치는 서버에서 `deploy/nginx/install.sh`를 sudo로 직접 실행한다(재실행 가능, 실패 시 복구·백업·종료 코드 1).
+- 정적 파일 캐시: `/js`는 ES 모듈 하위 import에 `?v=`를 붙일 수 없으므로 항상 ETag로 재검증(`no-cache`)하고, CSS와 vendor는 7일 캐시(진입점 `?v=` 사용), `/uploads`는 1년 immutable.
+- 배포: `master`에 push하면 GitHub Actions(`.github/workflows/deploy.yml`)가 typecheck·테스트 후 테스트한 커밋(`github.sha`)을 SSH로 서버에 배포한다(`scripts/deploy.sh` → `scripts/remote-deploy.sh`: 체크아웃, 설치, 빌드, 마이그레이션, `pm2 reload`, `/healthz` 확인). 수동 배포는 `bash scripts/deploy.sh [브랜치] [ref]`.
+
 ## 테스트
 
 Vitest + supertest.
@@ -195,4 +204,4 @@ Vitest + supertest.
 - 다중 사용자/회원가입
 - JSON API, 서버 측 검색·페이지네이션
 - 외부 스토리지(S3 등)
-- 배포 자동화(배포 대상 확정 후 별도 진행)
+- 무중단·원자적 배포(릴리스 디렉터리 전환 등)
