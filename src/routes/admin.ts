@@ -11,11 +11,12 @@ import {
 import type { Config } from '../config.js'
 import { HttpError, parseId } from '../errors.js'
 import { formValues } from '../fields.js'
+import { receivePhotos, type PhotoOwner, type PhotoService } from '../photos.js'
 import { DEFS, prepare, type Entity, type ResourceDef } from '../resources.js'
 import { toIndexEntry } from '../search-index.js'
 import type { Repos } from '../repository.js'
 
-export type AdminDeps = { config: Config; repos: Repos }
+export type AdminDeps = { config: Config; repos: Repos; photos: PhotoService }
 
 type FormOptions = {
   entity: Entity | null
@@ -45,7 +46,7 @@ function renderForm(res: Response, def: ResourceDef, options: FormOptions): void
   })
 }
 
-export function adminRouter({ config, repos }: AdminDeps): Router {
+export function adminRouter({ config, repos, photos }: AdminDeps): Router {
   const router = Router()
   router.use((_req, res, next) => {
     res.set('Cache-Control', 'no-store')
@@ -131,9 +132,40 @@ export function adminRouter({ config, repos }: AdminDeps): Router {
     router.post(`/${def.path}/:id/delete`, async (req, res) => {
       const removed = await repo.remove(parseId(req.params.id))
       if (!removed) throw recordNotFound()
+      await photos.removeFiles(removed)
       res.redirect(303, base)
     })
+
+    router.post(`/${def.path}/:id/photos`, async (req, res) => {
+      const id = parseId(req.params.id)
+      const entity = await repo.get(id)
+      if (!entity) throw recordNotFound()
+      try {
+        await photos.add(def, id, await receivePhotos(req, res))
+      } catch (err) {
+        if (err instanceof HttpError && err.status === 400) {
+          renderForm(res, def, { entity, status: 400, photoError: err.message })
+          return
+        }
+        throw err
+      }
+      res.redirect(303, `${base}/${id}/edit#photos`)
+    })
   }
+
+  const photosHref = (owner: PhotoOwner) => `/admin/${DEFS[owner.kind].path}/${owner.id}/edit#photos`
+
+  router.post('/photos/:id/thumbnail', async (req, res) => {
+    const owner = await photos.setThumbnail(parseId(req.params.id))
+    if (!owner) throw new HttpError(404, '사진을 찾을 수 없습니다')
+    res.redirect(303, photosHref(owner))
+  })
+
+  router.post('/photos/:id/delete', async (req, res) => {
+    const owner = await photos.remove(parseId(req.params.id))
+    if (!owner) throw new HttpError(404, '사진을 찾을 수 없습니다')
+    res.redirect(303, photosHref(owner))
+  })
 
   return router
 }

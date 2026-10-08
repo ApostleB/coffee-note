@@ -5,9 +5,11 @@ import { isAdmin } from './auth.js'
 import type { Config } from './config.js'
 import { errorHandler, notFound } from './errors.js'
 import { PUBLIC_DIR, VIEWS_DIR, vendorDir } from './paths.js'
+import { createPhotoService } from './photos.js'
 import { createRepos } from './repository.js'
 import { adminRouter } from './routes/admin.js'
 import { publicRouter } from './routes/public.js'
+import { createStorage } from './storage.js'
 
 export type AppDeps = { config: Config; pool: Pool }
 
@@ -42,12 +44,15 @@ export function createApp({ config, pool }: AppDeps) {
   })
 
   const repos = createRepos(pool)
+  const photos = createPhotoService(pool, createStorage(config.uploadDir))
+  // 사진 파일 이름은 UUID라 내용이 바뀌지 않는다
+  app.use('/uploads', express.static(config.uploadDir, { maxAge: '365d', immutable: true }))
 
   app.get('/healthz', (_req, res) => {
     res.json({ ok: true })
   })
 
-  app.use('/admin', adminRouter({ config, repos }))
+  app.use('/admin', adminRouter({ config, repos, photos }))
   app.use(publicRouter(repos))
 
   app.use(notFound)
