@@ -1,10 +1,10 @@
 import type { Express } from 'express'
 import type { Pool } from 'pg'
 import request from 'supertest'
-import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../src/app.js'
 import { createRepos, type Repos } from '../src/repository.js'
-import { beanDef } from '../src/resources.js'
+import { beanDef, cafeVisitDef } from '../src/resources.js'
 import { createTestPool, describeDb, resetData } from './db.js'
 import { prepared } from './fixtures.js'
 import { TEST_PASSWORD, testConfig } from './helpers.js'
@@ -159,4 +159,90 @@ describeDb('관리자 작성·수정·삭제', () => {
     expect(await repos.bean.list()).toHaveLength(1)
   })
 
+  describe('카드 복사', () => {
+    const beanBody = {
+      name: '에티오피아 구지',
+      shop: '리브레',
+      variety: '헤어룸, 게이샤',
+      flavorTags: '베리, 자스민',
+      acidity: '8',
+      sweetness: '7',
+      body: '6',
+      aftertaste: '9',
+      purchasedAt: '2026-10-01',
+      isDecaf: 'on',
+      memo: '메모',
+    }
+    const addPhoto = (beanId: number) =>
+      pool.query("INSERT INTO photos (bean_id, file_name, thumb_name, is_thumbnail) VALUES ($1, 'a.jpg', 'a-t.jpg', true)", [beanId])
+
+    it('원두를 복사하면 제목에 (복사)가 붙고 나머지는 같다', async () => {
+      const src = await repos.bean.create(prepared(beanDef, beanBody))
+      await addPhoto(src.id)
+      const res = await agent.post(`/admin/beans/${src.id}/copy`)
+      expect(res.status).toBe(303)
+      const copy = (await repos.bean.list()).find((b) => b.id !== src.id)!
+      expect(res.headers.location).toBe(`/admin/beans/${copy.id}/edit?copied=1`)
+      expect(copy).toMatchObject({
+        name: '에티오피아 구지 (복사)',
+        shop: '리브레',
+        variety: ['헤어룸', '게이샤'],
+        flavorTags: ['베리', '자스민'],
+        totalScore: 30,
+        isDecaf: true,
+        purchasedAt: '2026-10-01',
+        memo: '메모',
+        photos: [],
+      })
+      expect((await repos.bean.get(src.id))?.name).toBe('에티오피아 구지')
+      expect((await repos.bean.get(src.id))?.photos).toHaveLength(1)
+      const edit = await agent.get(res.headers.location)
+      expect(edit.text).toContain('복사했습니다. 제목을 수정하세요.')
+      expect(edit.text).toMatch(/id="f-name"[^>]*autofocus/)
+      expect((await agent.get(`/admin/beans/${src.id}/edit`)).text).toContain(`action="/admin/beans/${src.id}/copy"`)
+    })
+
+    it('카페 후기도 복사한다', async () => {
+      const src = await repos.cafe.create(
+        prepared(cafeVisitDef, { menu: '게이샤 필터', cafeName: '프릳츠', rating: '4', variety: '게이샤', flavorTags: '꽃' }),
+      )
+      const res = await agent.post(`/admin/cafe-visits/${src.id}/copy`)
+      expect(res.status).toBe(303)
+      const copy = (await repos.cafe.list()).find((c) => c.id !== src.id)!
+      expect(res.headers.location).toBe(`/admin/cafe-visits/${copy.id}/edit?copied=1`)
+      expect(copy).toMatchObject({ menu: '게이샤 필터 (복사)', cafeName: '프릳츠', rating: 4, variety: ['게이샤'], flavorTags: ['꽃'], photos: [] })
+    })
+
+    it('같은 이름이 있으면 (복사 2), (복사 3)으로 구분한다', async () => {
+      const src = await repos.bean.create(prepared(beanDef, beanBody))
+      await agent.post(`/admin/beans/${src.id}/copy`).expect(303)
+      await agent.post(`/admin/beans/${src.id}/copy`).expect(303)
+      const first = (await repos.bean.list()).find((b) => b.name === '에티오피아 구지 (복사)')!
+      await agent.post(`/admin/beans/${first.id}/copy`).expect(303)
+      const names = (await repos.bean.list()).map((b) => b.name).sort()
+      expect(names).toEqual(['에티오피아 구지', '에티오피아 구지 (복사 2)', '에티오피아 구지 (복사 3)', '에티오피아 구지 (복사)'])
+    })
+
+    it('긴 제목도 200자 안에서 복사한다', async () => {
+      const src = await repos.bean.create(prepared(beanDef, { name: '가'.repeat(200), shop: '리브레' }))
+      await agent.post(`/admin/beans/${src.id}/copy`).expect(303)
+      await agent.post(`/admin/beans/${src.id}/copy`).expect(303)
+      const names = (await repos.bean.list()).map((b) => b.name as string)
+      expect(names).toHaveLength(3)
+      expect(new Set(names).size).toBe(3)
+      for (const name of names) expect(name.length).toBeLessThanOrEqual(200)
+      expect(names.filter((n) => n.endsWith(' (복사)') || n.endsWith(' (복사 2)'))).toHaveLength(2)
+    })
+
+    it('없는 글은 404, 로그인하지 않으면 로그인으로, 다른 출처는 403', async () => {
+      expect((await agent.post('/admin/beans/999/copy')).status).toBe(404)
+      expect((await agent.post('/admin/cafe-visits/999/copy')).status).toBe(404)
+      const src = await repos.bean.create(prepared(beanDef, beanBody))
+      const anon = await request(app).post(`/admin/beans/${src.id}/copy`)
+      expect(anon.status).toBe(303)
+      expect(anon.headers.location).toBe('/admin/login')
+      expect((await agent.post(`/admin/beans/${src.id}/copy`).set('Origin', 'https://other.example')).status).toBe(403)
+      expect(await repos.bean.list()).toHaveLength(1)
+    })
+  })
 })

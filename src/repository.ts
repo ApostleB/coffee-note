@@ -1,11 +1,14 @@
 import type { Pool } from 'pg'
 import { withTransaction } from './db.js'
+import { toColumn } from './fields.js'
 import { beanDef, cafeVisitDef, columnsOf, toEntity, type Entity, type Kind, type PhotoRow, type ResourceDef } from './resources.js'
 
 export type ResourceRepo = {
   list(): Promise<Entity[]>
   get(id: number): Promise<Entity | null>
   create(data: Record<string, unknown>): Promise<Entity>
+  /** 같은 제목(카드 제목 필드)의 글이 이미 있는지 */
+  titleExists(title: string): Promise<boolean>
   update(id: number, data: Record<string, unknown>): Promise<Entity | null>
   /** 삭제된 글에 붙어 있던 사진 행(파일 정리용). 글이 없으면 null */
   remove(id: number): Promise<PhotoRow[] | null>
@@ -56,6 +59,11 @@ export function createResourceRepo(pool: Pool, def: ResourceDef): ResourceRepo {
       )
       const [entity] = await hydrate(rows)
       return entity
+    },
+
+    async titleExists(title) {
+      const { rowCount } = await pool.query(`SELECT 1 FROM ${def.table} WHERE ${toColumn(def.card.title)} = $1 LIMIT 1`, [title])
+      return (rowCount ?? 0) > 0
     },
 
     async update(id, data) {
