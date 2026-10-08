@@ -82,6 +82,11 @@ describeDb('migrate 002_variety_array', () => {
       `INSERT INTO beans (name, shop, variety) VALUES ('a', 's', 'A, B ,,A'), ('b', 's', NULL), ('c', 's', '  '), ('d', 's', 'Gesha'), ('e', 's', ' , ')`,
     )
     await pool.query(`INSERT INTO cafe_visits (menu, cafe_name, variety) VALUES ('m', 'c', '게이샤,버번, 게이샤'), ('n', 'c', NULL)`)
+    // 탭·개행·캐리지리턴 등 스페이스 외 공백
+    for (const [name, variety] of [['f', '\t'], ['g', 'A,\tA'], ['h', 'A\n, B'], ['i', ' \r\n\t '], ['j', '\tB\r,A\n']]) {
+      await pool.query('INSERT INTO beans (name, shop, variety) VALUES ($1, $2, $3)', [name, 's', variety])
+    }
+    await pool.query('INSERT INTO cafe_visits (menu, cafe_name, variety) VALUES ($1, $2, $3), ($4, $2, $5)', ['p', 'c', '\t', 'q', 'A\n,\tA, B'])
 
     expect(await migrate(pool, () => {})).toEqual(['002_variety_array.sql'])
 
@@ -92,11 +97,18 @@ describeDb('migrate 002_variety_array', () => {
       { name: 'c', variety: [] },
       { name: 'd', variety: ['Gesha'] },
       { name: 'e', variety: [] },
+      { name: 'f', variety: [] },
+      { name: 'g', variety: ['A'] },
+      { name: 'h', variety: ['A', 'B'] },
+      { name: 'i', variety: [] },
+      { name: 'j', variety: ['B', 'A'] },
     ])
     const cafes = await pool.query('SELECT menu, variety FROM cafe_visits ORDER BY menu')
     expect(cafes.rows).toEqual([
       { menu: 'm', variety: ['게이샤', '버번'] },
       { menu: 'n', variety: [] },
+      { menu: 'p', variety: [] },
+      { menu: 'q', variety: ['A', 'B'] },
     ])
   })
 })
