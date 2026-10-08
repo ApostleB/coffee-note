@@ -117,14 +117,43 @@ describe('createLoginGuard', () => {
       expect(guard.check('1.1.1.1')).toEqual({ blocked: false })
     })
 
-    it('차단 항목만으로 가득 차면 새 IP의 실패는 저장하지 않고 기존 차단은 유지한다', () => {
+    it('차단 항목만으로 가득 차면 새 IP는 가장 빨리 끝나는 차단까지 차단하고(fail-closed) 기존 차단은 유지한다', () => {
+      const { clock, guard, fail } = setup(2)
+      fail('1.1.1.1', 10)
+      clock.t += 3 * MIN
+      fail('2.2.2.2', 10)
+      fail('3.3.3.3', 10) // 저장되지 않는다
+      expect(guard.check('3.3.3.3')).toEqual({ blocked: true, retryAfterMs: 7 * MIN })
+      expect(guard.check('1.1.1.1')).toEqual({ blocked: true, retryAfterMs: 7 * MIN })
+      expect(guard.check('2.2.2.2')).toEqual({ blocked: true, retryAfterMs: 10 * MIN })
+    })
+
+    it('남은 시간이 1초 미만이어도 최소 1초로 알린다', () => {
+      const { clock, guard, fail } = setup(1)
+      fail('1.1.1.1', 10)
+      clock.t += 10 * MIN - 200
+      expect(guard.check('2.2.2.2')).toEqual({ blocked: true, retryAfterMs: 1000 })
+    })
+
+    it('자리가 생기면 새 IP도 정상 집계된다', () => {
+      const { clock, guard, fail } = setup(2)
+      fail('1.1.1.1', 10)
+      clock.t += 3 * MIN
+      fail('2.2.2.2', 10)
+      expect(guard.check('3.3.3.3').blocked).toBe(true)
+      clock.t += 7 * MIN // 1.1.1.1 만료
+      expect(guard.check('3.3.3.3')).toEqual({ blocked: false })
+      fail('3.3.3.3', 9)
+      expect(guard.check('3.3.3.3')).toEqual({ blocked: false })
+      guard.recordFailure('3.3.3.3')
+      expect(guard.check('3.3.3.3').blocked).toBe(true)
+    })
+
+    it('미차단 항목이 있으면 밀어낼 수 있으므로 차단하지 않는다', () => {
       const { guard, fail } = setup(2)
       fail('1.1.1.1', 10)
-      fail('2.2.2.2', 10)
-      fail('3.3.3.3', 10)
+      guard.recordFailure('2.2.2.2')
       expect(guard.check('3.3.3.3')).toEqual({ blocked: false })
-      expect(guard.check('1.1.1.1').blocked).toBe(true)
-      expect(guard.check('2.2.2.2').blocked).toBe(true)
     })
   })
 })

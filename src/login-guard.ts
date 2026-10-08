@@ -19,6 +19,7 @@ export type LoginGuard = {
 type Entry = { failures: number; lastFailureAt: number; blockedUntil: number }
 
 const MAX_ENTRIES = 10_000
+const MIN_RETRY_MS = 1000
 const IPV6_PREFIX_BITS = 56
 
 /** IPv6 문자열(축약·IPv4 꼬리 포함)을 16비트 그룹 8개로 푼다 */
@@ -91,12 +92,21 @@ export function createLoginGuard({
       const key = clientKey(ip)
       const at = now()
       const entry = entries.get(key)
-      if (!entry) return { blocked: false }
-      if (isExpired(entry, at)) {
+      if (entry) {
+        if (!isExpired(entry, at)) {
+          return entry.blockedUntil > 0 ? { blocked: true, retryAfterMs: entry.blockedUntil - at } : { blocked: false }
+        }
         entries.delete(key)
-        return { blocked: false }
       }
-      return entry.blockedUntil > 0 ? { blocked: true, retryAfterMs: entry.blockedUntil - at } : { blocked: false }
+      // 저장소가 활성 차단만으로 가득 차 새 키를 기록할 수 없으면 차단한다 (fail-closed)
+      if (entries.size >= maxEntries) {
+        prune(at)
+        if (entries.size >= maxEntries && [...entries.values()].every((e) => e.blockedUntil > 0)) {
+          const earliest = Math.min(...[...entries.values()].map((e) => e.blockedUntil))
+          return { blocked: true, retryAfterMs: Math.max(earliest - at, MIN_RETRY_MS) }
+        }
+      }
+      return { blocked: false }
     },
 
     recordFailure(ip) {
