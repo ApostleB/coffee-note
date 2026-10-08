@@ -87,6 +87,11 @@ describeDb('migrate 002_variety_array', () => {
       await pool.query('INSERT INTO beans (name, shop, variety) VALUES ($1, $2, $3)', [name, 's', variety])
     }
     await pool.query('INSERT INTO cafe_visits (menu, cafe_name, variety) VALUES ($1, $2, $3), ($4, $2, $5)', ['p', 'c', '\t', 'q', 'A\n,\tA, B'])
+    // JS trim과 같은 유니코드 공백(NBSP·전각 공백·BOM 등)
+    for (const [name, variety] of [['k', ' A\u3000'], ['l', 'A,\uFEFFA'], ['m', '\u00A0\u2003\u3000\uFEFF'], ['n', '\u00A0B\u2028,A\u202F,\u205FB']]) {
+      await pool.query('INSERT INTO beans (name, shop, variety) VALUES ($1, $2, $3)', [name, 's', variety])
+    }
+    await pool.query('INSERT INTO cafe_visits (menu, cafe_name, variety) VALUES ($1, $2, $3), ($4, $2, $5)', ['r', 'c', '\u00A0', 's', '\u3000A,\uFEFFA\u2029,B'])
 
     expect(await migrate(pool, () => {})).toEqual(['002_variety_array.sql'])
 
@@ -102,6 +107,10 @@ describeDb('migrate 002_variety_array', () => {
       { name: 'h', variety: ['A', 'B'] },
       { name: 'i', variety: [] },
       { name: 'j', variety: ['B', 'A'] },
+      { name: 'k', variety: ['A'] },
+      { name: 'l', variety: ['A'] },
+      { name: 'm', variety: [] },
+      { name: 'n', variety: ['B', 'A'] },
     ])
     const cafes = await pool.query('SELECT menu, variety FROM cafe_visits ORDER BY menu')
     expect(cafes.rows).toEqual([
@@ -109,6 +118,8 @@ describeDb('migrate 002_variety_array', () => {
       { menu: 'n', variety: [] },
       { menu: 'p', variety: [] },
       { menu: 'q', variety: ['A', 'B'] },
+      { menu: 'r', variety: [] },
+      { menu: 's', variety: ['A', 'B'] },
     ])
   })
 })
