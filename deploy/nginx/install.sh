@@ -16,6 +16,7 @@ ENV_FILE=/home/rocky/coffee-note/.env
 
 # 설정을 설치하고 nginx -t와 reload가 모두 성공할 때만 유지한다.
 # 어느 단계든 실패하면 이전 conf로 복구(없었으면 삭제)하고 실패를 반환한다.
+# 복구 자체가 실패하면 nginx 상태를 알 수 없으므로 백업을 남기고 즉시 종료한다.
 # (if/|| 안에서 호출돼도 set -e가 꺼지므로 각 명령의 실패를 직접 확인한다)
 install_conf() {
   local src="$1" backup=""
@@ -23,22 +24,36 @@ install_conf() {
     backup="$(mktemp)"
     cp "$CONF_DEST" "$backup" || return 1
   fi
+
   restore() {
+    local ok=1
     if [ -n "$backup" ]; then
-      cp "$backup" "$CONF_DEST"
+      cp "$backup" "$CONF_DEST" || ok=0
     else
-      rm -f "$CONF_DEST"
+      rm -f "$CONF_DEST" || ok=0
     fi
-    nginx -t >/dev/null 2>&1 && systemctl reload nginx || true
+    if [ "$ok" -eq 1 ]; then
+      nginx -t || ok=0
+    fi
+    if [ "$ok" -eq 1 ]; then
+      systemctl reload nginx || ok=0
+    fi
+    if [ "$ok" -eq 0 ]; then
+      echo "오류: nginx 설정 복구에 실패했습니다. $CONF_DEST 와 nginx 상태를 직접 확인하세요." >&2
+      [ -z "$backup" ] || echo "이전 설정 백업: $backup" >&2
+      exit 1
+    fi
+    rm -f "$backup"
   }
+
   if ! cp "$src" "$CONF_DEST"; then
-    restore; rm -f "$backup"; return 1
+    restore; return 1
   fi
   if ! nginx -t; then
-    restore; rm -f "$backup"; return 1
+    restore; return 1
   fi
   if ! systemctl reload nginx; then
-    restore; rm -f "$backup"; return 1
+    restore; return 1
   fi
   rm -f "$backup"
   return 0
@@ -89,13 +104,17 @@ else
   echo 'COOKIE_SECURE=true' >> "$ENV_FILE"
 fi
 if ! runuser -l rocky -c "pm2 reload coffee-note --update-env"; then
-  echo "pm2 reload 실패: rocky 사용자로 직접 실행하세요 → pm2 reload coffee-note --update-env" >&2
+  echo "오류: pm2 reload 실패. HTTPS conf와 COOKIE_SECURE=true는 이미 적용된 상태입니다." >&2
+  echo "rocky 사용자로 직접 실행하세요 → pm2 reload coffee-note --update-env" >&2
+  exit 1
 fi
 
 # (5) 결과 확인
 # reload 직후에는 502가 잠깐 나올 수 있어 최대 10회 1초 간격으로 재시도한다
+healthy=0
 for _ in $(seq 10); do
   if curl -sSI -f "https://$DOMAIN/healthz"; then
+    healthy=1
     break
   fi
   sleep 1
@@ -103,3 +122,8 @@ done
 
 echo
 echo "자동 갱신 확인: certbot renew --dry-run --cert-name $DOMAIN"
+
+if [ "$healthy" -ne 1 ]; then
+  echo "오류: https://$DOMAIN/healthz 확인 실패 (10회 시도). nginx와 pm2 상태를 확인하세요." >&2
+  exit 1
+fi
