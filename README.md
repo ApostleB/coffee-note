@@ -82,7 +82,7 @@ bash scripts/deploy.sh [브랜치]   # 기본 master
 sudo bash /home/rocky/coffee-note/deploy/nginx/install.sh
 ```
 
-HTTP 설정 설치 → certbot으로 `coffee.bytebard.cloud` 인증서 발급 → HTTPS 설정 적용 → 서버 `.env`의 `COOKIE_SECURE=true` 반영 및 앱 재로드까지 진행합니다. `X-Forwarded-Proto` 헤더를 프록시가 넘겨야 관리자 POST가 통과합니다.
+HTTP 설정 설치 → certbot으로 `coffee.bytebard.cloud` 인증서 발급 → HTTPS 설정 적용 → 서버 `.env`의 `COOKIE_SECURE=true` 반영 및 앱 재로드까지 진행합니다. 설치 후 갱신이 되는지 `sudo certbot renew --dry-run --cert-name coffee.bytebard.cloud`로 확인하세요. `X-Forwarded-Proto` 헤더를 프록시가 넘겨야 관리자 POST가 통과합니다.
 
 ### 백업
 

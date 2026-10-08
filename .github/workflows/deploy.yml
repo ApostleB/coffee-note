@@ -15,8 +15,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -28,6 +26,8 @@ jobs:
 
   deploy:
     needs: test
+    # 수동 실행도 master에서만 배포한다
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -45,7 +45,8 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SHA: ${{ github.sha }}
         run: |
           ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" -o StrictHostKeyChecking=yes \
             "$DEPLOY_USER@$DEPLOY_HOST" \
-            'cd /home/rocky/coffee-note && git fetch origin && git checkout -B master origin/master && bash /home/rocky/coffee-note/scripts/remote-deploy.sh master'
+            "cd /home/rocky/coffee-note && git fetch origin && git checkout -B master $DEPLOY_SHA && bash scripts/remote-deploy.sh master $DEPLOY_SHA"

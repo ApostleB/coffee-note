@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# 서버에서 실행: bash scripts/remote-deploy.sh [branch]  (기본 master)
+# 서버에서 실행: bash scripts/remote-deploy.sh [branch] [ref]
+# branch 기본 master, ref 기본 origin/<branch> (커밋 sha도 가능)
 set -euo pipefail
 
 BRANCH="${1:-master}"
+REF="${2:-origin/$BRANCH}"
 APP_DIR=/home/rocky/coffee-note
 
 export PATH="$HOME/.local/bin:$PATH"
 
 cd "$APP_DIR"
 git fetch origin
-git checkout -B "$BRANCH" "origin/$BRANCH"
+git checkout -B "$BRANCH" "$REF"
 
 if ! command -v pnpm >/dev/null 2>&1; then
   npm i -g pnpm@11 --prefix "$HOME/.local"
