@@ -1,4 +1,5 @@
 import type { Pool } from 'pg'
+import { withTransaction } from './db.js'
 import { beanDef, cafeVisitDef, columnsOf, toEntity, type Entity, type Kind, type PhotoRow, type ResourceDef } from './resources.js'
 
 export type ResourceRepo = {
@@ -68,9 +69,14 @@ export function createResourceRepo(pool: Pool, def: ResourceDef): ResourceRepo {
     },
 
     async remove(id) {
-      const { rows: photos } = await pool.query<PhotoRow>(`SELECT * FROM photos WHERE ${def.photoFk} = $1`, [id])
-      const { rowCount } = await pool.query(`DELETE FROM ${def.table} WHERE id = $1`, [id])
-      return rowCount ? photos : null
+      // 사진 조회와 삭제 사이에 사진이 추가·삭제되지 않도록 부모 행을 잠그고 한 트랜잭션에서 처리한다
+      return withTransaction(pool, async (client) => {
+        const { rowCount: found } = await client.query(`SELECT id FROM ${def.table} WHERE id = $1 FOR UPDATE`, [id])
+        if (!found) return null
+        const { rows: photos } = await client.query<PhotoRow>(`SELECT * FROM photos WHERE ${def.photoFk} = $1`, [id])
+        await client.query(`DELETE FROM ${def.table} WHERE id = $1`, [id])
+        return photos
+      })
     },
   }
 }

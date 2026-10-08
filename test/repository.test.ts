@@ -101,4 +101,15 @@ describeDb('repository', () => {
     const { rows } = await pool.query('SELECT count(*)::int AS n FROM photos')
     expect(rows[0].n).toBe(0)
   })
+
+  it('사진이 여러 장인 글을 삭제하면 모든 사진 행을 돌려주고 photos에서도 지운다', async () => {
+    const cafe = await repos.cafe.create(prepared(cafeVisitDef, { menu: '필터', cafeName: '프릳츠' }))
+    const insert = 'INSERT INTO photos (cafe_visit_id, file_name, thumb_name, sort_order) VALUES ($1, $2, $3, $4)'
+    await pool.query(insert, [cafe.id, 'a.webp', 'a-thumb.webp', 0])
+    await pool.query(insert, [cafe.id, 'b.webp', 'b-thumb.webp', 1])
+    const removed = await repos.cafe.remove(cafe.id)
+    expect(removed?.map((p) => p.file_name).sort()).toEqual(['a.webp', 'b.webp'])
+    const { rows } = await pool.query('SELECT count(*)::int AS n FROM photos')
+    expect(rows[0].n).toBe(0)
+  })
 })
