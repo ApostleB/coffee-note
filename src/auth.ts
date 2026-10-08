@@ -1,0 +1,76 @@
+import { createHash, timingSafeEqual } from 'node:crypto'
+import type { Request, RequestHandler, Response } from 'express'
+import { rateLimit } from 'express-rate-limit'
+import type { Config } from './config.js'
+import { HttpError } from './errors.js'
+
+export const ADMIN_COOKIE = 'coffee_admin'
+const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
+
+/** 서명 쿠키 값은 만료 시각(ms). 서명이 맞고 아직 만료 전이면 관리자 */
+export function isAdmin(req: Request): boolean {
+  const value: unknown = req.signedCookies?.[ADMIN_COOKIE]
+  if (typeof value !== 'string') return false
+  const expiresAt = Number(value)
+  return Number.isFinite(expiresAt) && expiresAt > Date.now()
+}
+
+export function issueAdminCookie(res: Response, config: Config): void {
+  res.cookie(ADMIN_COOKIE, String(Date.now() + MAX_AGE_MS), {
+    signed: true,
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: config.cookieSecure,
+    maxAge: MAX_AGE_MS,
+    path: '/',
+  })
+}
+
+export function clearAdminCookie(res: Response): void {
+  res.clearCookie(ADMIN_COOKIE, { path: '/' })
+}
+
+/** 길이와 내용이 드러나지 않도록 SHA-256 다이제스트를 timing-safe 비교한다 */
+export function checkPassword(input: unknown, expected: string): boolean {
+  if (typeof input !== 'string') return false
+  const digest = (value: string) => createHash('sha256').update(value).digest()
+  return timingSafeEqual(digest(input), digest(expected))
+}
+
+export const requireAdmin: RequestHandler = (req, res, next) => {
+  if (isAdmin(req)) {
+    next()
+    return
+  }
+  res.redirect(303, '/admin/login')
+}
+
+/** 다른 사이트에서 보낸 POST를 막는다 (SameSite 쿠키에 더한 이중 방어) */
+export const sameOriginOnly: RequestHandler = (req, _res, next) => {
+  const origin = req.get('origin')
+  if (req.method === 'POST' && origin !== undefined) {
+    let host: string | null
+    try {
+      host = new URL(origin).host
+    } catch {
+      host = null
+    }
+    if (host === null || host !== req.get('host')) throw new HttpError(403, '허용되지 않은 요청입니다')
+  }
+  next()
+}
+
+export function loginLimiter(): RequestHandler {
+  return rateLimit({
+    windowMs: 60_000,
+    limit: 10,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    handler: (_req, res) => {
+      res.status(429).render('admin/login', {
+        title: '관리자 로그인',
+        error: '로그인 시도가 너무 많습니다. 1분 뒤에 다시 시도하세요.',
+      })
+    },
+  })
+}

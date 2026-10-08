@@ -1,0 +1,20 @@
+<%- include('../partials/head') %>
+<main class="container py-5">
+  <div class="card shadow-sm mx-auto coffee-login">
+    <div class="card-body p-4">
+      <h1 class="h5 mb-3"><i class="bi bi-lock"></i> 관리자 로그인</h1>
+      <% if (error) { %>
+        <div class="alert alert-danger py-2" role="alert"><%= error %></div>
+      <% } %>
+      <form method="post" action="/admin/login" class="vstack gap-3">
+        <div>
+          <label class="form-label" for="password">비밀번호</label>
+          <input class="form-control" id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+        </div>
+        <button class="btn btn-primary" type="submit">로그인</button>
+      </form>
+    </div>
+  </div>
+  <p class="text-center mt-3 mb-0"><a class="small text-body-secondary" href="/">공개 페이지로</a></p>
+</main>
+<%- include('../partials/foot') %>

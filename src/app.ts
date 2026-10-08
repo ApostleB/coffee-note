@@ -1,10 +1,12 @@
 import cookieParser from 'cookie-parser'
 import express from 'express'
 import type { Pool } from 'pg'
+import { isAdmin } from './auth.js'
 import type { Config } from './config.js'
 import { errorHandler, notFound } from './errors.js'
 import { PUBLIC_DIR, VIEWS_DIR, vendorDir } from './paths.js'
 import { createRepos } from './repository.js'
+import { adminRouter } from './routes/admin.js'
 import { publicRouter } from './routes/public.js'
 
 export type AppDeps = { config: Config; pool: Pool }
@@ -33,12 +35,19 @@ export function createApp({ config, pool }: AppDeps) {
 
   app.use(express.urlencoded({ extended: false, limit: '100kb' }))
   app.use(cookieParser(config.sessionSecret))
+  // 템플릿에서 관리자 전용 링크(수정 버튼 등)를 보여줄지 정한다
+  app.use((req, res, next) => {
+    res.locals.isAdmin = isAdmin(req)
+    next()
+  })
+
   const repos = createRepos(pool)
 
   app.get('/healthz', (_req, res) => {
     res.json({ ok: true })
   })
 
+  app.use('/admin', adminRouter({ config, repos }))
   app.use(publicRouter(repos))
 
   app.use(notFound)

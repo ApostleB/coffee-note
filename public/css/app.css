@@ -197,3 +197,6 @@
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+
+/* ===== 관리자 ===== */
+.coffee-login { max-width: 380px; }

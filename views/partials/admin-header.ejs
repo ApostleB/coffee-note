@@ -1,0 +1,23 @@
+<header class="border-bottom bg-body">
+  <nav class="navbar navbar-expand container">
+    <a class="navbar-brand fw-bold" href="/admin"><i class="bi bi-cup-hot-fill text-primary"></i> 관리</a>
+    <ul class="navbar-nav me-auto">
+      <li class="nav-item">
+        <a class="nav-link<%= locals.active === 'beans' ? ' active' : '' %>" href="/admin/beans">원두 노트</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link<%= locals.active === 'cafe-visits' ? ' active' : '' %>" href="/admin/cafe-visits">카페 후기</a>
+      </li>
+    </ul>
+    <div class="coffee-actions">
+      <a class="btn btn-sm btn-outline-secondary" href="/" title="공개 페이지">
+        <i class="bi bi-box-arrow-up-right"></i><span class="d-none d-sm-inline"> 공개 페이지</span>
+      </a>
+      <form method="post" action="/admin/logout">
+        <button class="btn btn-sm btn-outline-secondary" type="submit" title="로그아웃">
+          <i class="bi bi-box-arrow-right"></i><span class="d-none d-sm-inline"> 로그아웃</span>
+        </button>
+      </form>
+    </div>
+  </nav>
+</header>
