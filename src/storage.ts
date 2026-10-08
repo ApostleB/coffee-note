@@ -25,7 +25,11 @@ export function createStorage(dir: string): Storage {
       ])
       const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
       if (failed) {
-        await Promise.allSettled([saved.fileName, saved.thumbName].map((name) => fs.rm(fullPath(name), { force: true })))
+        const names = [saved.fileName, saved.thumbName]
+        const cleanup = await Promise.allSettled(names.map((name) => fs.rm(fullPath(name), { force: true })))
+        cleanup.forEach((result, i) => {
+          if (result.status === 'rejected') console.error('사진 파일 정리 실패', names[i], result.reason)
+        })
         throw failed.reason
       }
       return saved

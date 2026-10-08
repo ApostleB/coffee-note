@@ -1,6 +1,6 @@
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
-import { processImage } from '../src/images.js'
+import { isAllowedFormat, processImage } from '../src/images.js'
 
 const png = (width: number, height: number) =>
   sharp({ create: { width, height, channels: 3, background: '#8b4a2b' } }).png().toBuffer()
@@ -34,5 +34,25 @@ describe('processImage', () => {
       status: 400,
       message: 'JPG, PNG, WebP, AVIF 이미지만 올릴 수 있습니다.',
     })
+  })
+
+  it('AVIF는 통과한다', async () => {
+    const avif = await sharp({ create: { width: 32, height: 32, channels: 3, background: '#8b4a2b' } }).avif().toBuffer()
+    expect((await sharp(avif).metadata()).compression).toBe('av1')
+    const { main } = await processImage(avif)
+    expect((await sharp(main).metadata()).format).toBe('webp')
+  })
+})
+
+describe('isAllowedFormat', () => {
+  it('heif는 AV1(AVIF)만 허용하고 HEIC(hevc)는 거부한다', () => {
+    expect(isAllowedFormat({ format: 'heif', compression: 'av1' })).toBe(true)
+    expect(isAllowedFormat({ format: 'heif', compression: 'hevc' })).toBe(false)
+    expect(isAllowedFormat({ format: 'heif' })).toBe(false)
+  })
+
+  it('JPEG, PNG, WebP는 허용하고 그 밖은 거부한다', () => {
+    for (const format of ['jpeg', 'png', 'webp']) expect(isAllowedFormat({ format })).toBe(true)
+    for (const format of ['gif', 'svg', 'tiff', undefined]) expect(isAllowedFormat({ format })).toBe(false)
   })
 })

@@ -57,4 +57,26 @@ describe('createStorage', () => {
     await new Promise((resolve) => setTimeout(resolve, 100))
     expect(fs.readdirSync(dir)).toEqual([])
   })
+
+  it('실패 후 정리까지 실패하면 파일명을 기록하고 원래 오류를 던진다', async () => {
+    const dir = path.join(makeTempDir(), 'uploads')
+    const storage = createStorage(dir)
+    const failure = new Error('disk full')
+    const cleanupFailure = new Error('EBUSY')
+    const original = fsp.writeFile.bind(fsp)
+    vi.spyOn(fsp, 'writeFile').mockImplementation(async (file, data, options) => {
+      if (String(file).endsWith('-thumb.webp')) throw failure
+      return original(file, data, options)
+    })
+    vi.spyOn(fsp, 'rm').mockRejectedValue(cleanupFailure)
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await expect(storage.save({ main: Buffer.from('main'), thumb: Buffer.from('thumb') })).rejects.toBe(failure)
+    expect(logged).toHaveBeenCalledTimes(2)
+    for (const [message, name, err] of logged.mock.calls) {
+      expect(message).toBe('사진 파일 정리 실패')
+      expect(name).toMatch(/^[0-9a-f-]{36}(-thumb)?\.webp$/)
+      expect(err).toBe(cleanupFailure)
+    }
+  })
 })
