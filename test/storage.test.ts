@@ -1,7 +1,8 @@
 import fs from 'node:fs'
+import fsp from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createStorage } from '../src/storage.js'
 
 describe('createStorage', () => {
@@ -12,6 +13,7 @@ describe('createStorage', () => {
     return dir
   }
   afterEach(() => {
+    vi.restoreAllMocks()
     for (const dir of tempDirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true })
   })
 
@@ -36,5 +38,23 @@ describe('createStorage', () => {
     const storage = createStorage(path.join(base, 'uploads'))
     await storage.remove(['../outside.txt'])
     expect(fs.existsSync(outside)).toBe(true)
+  })
+
+  it('썸네일 쓰기만 실패하면 본 이미지 파일도 남기지 않고 원래 오류를 던진다', async () => {
+    const dir = path.join(makeTempDir(), 'uploads')
+    const storage = createStorage(dir)
+    const original = fsp.writeFile.bind(fsp)
+    const failure = new Error('disk full')
+    vi.spyOn(fsp, 'writeFile').mockImplementation(async (file, data, options) => {
+      if (String(file).endsWith('-thumb.webp')) throw failure
+      // 본 이미지 쓰기는 실패보다 늦게 끝나도 정리 대상에 들어와야 한다
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      return original(file, data, options)
+    })
+
+    await expect(storage.save({ main: Buffer.from('main'), thumb: Buffer.from('thumb') })).rejects.toBe(failure)
+    // 늦게 끝나는 쓰기가 있어도 정리 이후 파일이 되살아나지 않아야 한다
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(fs.readdirSync(dir)).toEqual([])
   })
 })

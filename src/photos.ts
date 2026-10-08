@@ -3,8 +3,8 @@ import multer from 'multer'
 import type { Pool } from 'pg'
 import { withTransaction } from './db.js'
 import { HttpError } from './errors.js'
-import { processImage } from './images.js'
-import type { Kind, PhotoRow, ResourceDef } from './resources.js'
+import { processImage, UNSUPPORTED_FORMAT_MESSAGE } from './images.js'
+import { DEFS, type Kind, type PhotoRow, type ResourceDef } from './resources.js'
 import type { SavedImage, Storage } from './storage.js'
 
 const MAX_PHOTO_BYTES = 15 * 1024 * 1024
@@ -22,7 +22,7 @@ const upload = multer({
   limits: { fileSize: MAX_PHOTO_BYTES, files: MAX_PHOTOS_PER_UPLOAD },
   fileFilter: (_req, file, callback) => {
     if (ALLOWED_TYPES.has(file.mimetype)) callback(null, true)
-    else callback(new HttpError(400, 'JPG, PNG, WebP, AVIF 이미지만 올릴 수 있습니다.'))
+    else callback(new HttpError(400, UNSUPPORTED_FORMAT_MESSAGE))
   },
 }).array('photos', MAX_PHOTOS_PER_UPLOAD)
 
@@ -60,6 +60,15 @@ const ownerOf = (row: PhotoRow): PhotoOwner =>
 const fileNamesOf = (rows: PhotoRow[]) => rows.flatMap((row) => [row.file_name, row.thumb_name])
 
 export function createPhotoService(pool: Pool, storage: Storage): PhotoService {
+  // 파일 정리는 최선 노력: DB는 이미 확정됐으므로 실패해도 기록만 하고 요청은 정상 완료한다
+  async function removeFilesQuietly(names: string[]): Promise<void> {
+    try {
+      await storage.remove(names)
+    } catch (err) {
+      console.error('사진 파일 삭제 실패', names, err)
+    }
+  }
+
   return {
     async add(def, ownerId, files) {
       if (files.length === 0) throw new HttpError(400, '올릴 사진을 선택하세요.')
@@ -83,7 +92,7 @@ export function createPhotoService(pool: Pool, storage: Storage): PhotoService {
         })
       } catch (err) {
         // DB에 남지 않은 파일은 지운다
-        await storage.remove(saved.flatMap((image) => [image.fileName, image.thumbName]))
+        await removeFilesQuietly(saved.flatMap((image) => [image.fileName, image.thumbName]))
         throw err
       }
     },
@@ -91,22 +100,27 @@ export function createPhotoService(pool: Pool, storage: Storage): PhotoService {
     async remove(photoId) {
       const { rows } = await pool.query<PhotoRow>('DELETE FROM photos WHERE id = $1 RETURNING *', [photoId])
       if (!rows[0]) return null
-      await storage.remove(fileNamesOf(rows))
+      await removeFilesQuietly(fileNamesOf(rows))
       return ownerOf(rows[0])
     },
 
     async setThumbnail(photoId) {
       return withTransaction(pool, async (client) => {
-        const { rows } = await client.query<PhotoRow>('SELECT * FROM photos WHERE id = $1 FOR UPDATE', [photoId])
-        const photo = rows[0]
-        if (!photo) return null
-        const fk = photo.bean_id !== null ? 'bean_id' : 'cafe_visit_id'
-        await client.query(`UPDATE photos SET is_thumbnail = false WHERE ${fk} = $1 AND is_thumbnail`, [photo[fk]])
+        // 같은 글의 사진끼리 직렬화하려면 사진 행이 아니라 소유 글 행을 잠가야 한다
+        const { rows: found } = await client.query<PhotoRow>('SELECT * FROM photos WHERE id = $1', [photoId])
+        if (!found[0]) return null
+        const def = found[0].bean_id !== null ? DEFS.bean : DEFS.cafe
+        const ownerId = found[0][def.photoFk] as number
+        await client.query(`SELECT id FROM ${def.table} WHERE id = $1 FOR UPDATE`, [ownerId])
+        // 잠금을 기다리는 사이 사진이 지워졌을 수 있다
+        const { rowCount } = await client.query('SELECT 1 FROM photos WHERE id = $1', [photoId])
+        if (!rowCount) return null
+        await client.query(`UPDATE photos SET is_thumbnail = false WHERE ${def.photoFk} = $1 AND is_thumbnail`, [ownerId])
         await client.query('UPDATE photos SET is_thumbnail = true WHERE id = $1', [photoId])
-        return ownerOf(photo)
+        return ownerOf(found[0])
       })
     },
 
-    removeFiles: (rows) => storage.remove(fileNamesOf(rows)),
+    removeFiles: (rows) => removeFilesQuietly(fileNamesOf(rows)),
   }
 }

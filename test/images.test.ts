@@ -27,4 +27,12 @@ describe('processImage', () => {
       message: '이미지를 읽을 수 없습니다.',
     })
   })
+
+  it('GIF처럼 허용하지 않는 형식은 400', async () => {
+    const gif = await sharp({ create: { width: 10, height: 10, channels: 3, background: '#8b4a2b' } }).gif().toBuffer()
+    await expect(processImage(gif)).rejects.toMatchObject({
+      status: 400,
+      message: 'JPG, PNG, WebP, AVIF 이미지만 올릴 수 있습니다.',
+    })
+  })
 })

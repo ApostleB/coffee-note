@@ -18,15 +18,23 @@ export function createStorage(dir: string): Storage {
       await fs.mkdir(dir, { recursive: true })
       const id = randomUUID()
       const saved = { fileName: `${id}.webp`, thumbName: `${id}-thumb.webp` }
-      await Promise.all([
+      // 한쪽이 실패해도 다른 쓰기가 끝날 때까지 기다린 뒤 둘 다 지워야 파일이 되살아나지 않는다
+      const results = await Promise.allSettled([
         fs.writeFile(fullPath(saved.fileName), image.main),
         fs.writeFile(fullPath(saved.thumbName), image.thumb),
       ])
+      const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+      if (failed) {
+        await Promise.allSettled([saved.fileName, saved.thumbName].map((name) => fs.rm(fullPath(name), { force: true })))
+        throw failed.reason
+      }
       return saved
     },
 
     async remove(names) {
-      await Promise.all(names.map((name) => fs.rm(fullPath(name), { force: true })))
+      const results = await Promise.allSettled(names.map((name) => fs.rm(fullPath(name), { force: true })))
+      const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+      if (failed) throw failed.reason
     },
   }
 }

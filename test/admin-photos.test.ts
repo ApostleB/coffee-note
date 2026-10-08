@@ -1,11 +1,14 @@
 import fs from 'node:fs'
+import fsp from 'node:fs/promises'
 import path from 'node:path'
 import type { Express } from 'express'
 import type { Pool } from 'pg'
 import sharp from 'sharp'
 import request from 'supertest'
-import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest'
 import { createApp } from '../src/app.js'
+import { createPhotoService } from '../src/photos.js'
+import { createStorage } from '../src/storage.js'
 import { createRepos, type Repos } from '../src/repository.js'
 import { beanDef, cafeVisitDef } from '../src/resources.js'
 import { createTestPool, describeDb, resetData } from './db.js'
@@ -46,6 +49,10 @@ describeDb('관리자 사진', () => {
   afterAll(async () => {
     await pool.end()
     fs.rmSync(uploadDir, { recursive: true, force: true })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   beforeEach(async () => {
@@ -150,5 +157,47 @@ describeDb('관리자 사진', () => {
     expect(res.status).toBe(303)
     expect(res.headers.location).toBe('/admin/login')
     expect((await repos.bean.get(1))?.photos).toHaveLength(0)
+  })
+
+  it('MIME을 속인 GIF는 400이고 파일을 남기지 않는다', async () => {
+    const gif = await sharp({ create: { width: 10, height: 10, channels: 3, background: '#8b4a2b' } }).gif().toBuffer()
+    const before = fs.readdirSync(uploadDir)
+    const res = await upload('/admin/beans/1/photos', gif)
+    expect(res.status).toBe(400)
+    expect(res.text).toContain('JPG, PNG, WebP, AVIF 이미지만 올릴 수 있습니다.')
+    expect(fs.readdirSync(uploadDir)).toEqual(before)
+    expect((await repos.bean.get(1))?.photos).toHaveLength(0)
+  })
+
+  it('같은 글의 다른 사진을 동시에 썸네일로 지정해도 한 장만 지정된다', async () => {
+    for (const name of ['a', 'b', 'c']) {
+      await pool.query('INSERT INTO photos (bean_id, file_name, thumb_name, sort_order) VALUES (1, $1, $2, 0)', [
+        `${name}.webp`,
+        `${name}-thumb.webp`,
+      ])
+    }
+    const service = createPhotoService(pool, createStorage(uploadDir))
+    const { rows } = await pool.query<{ id: number }>('SELECT id FROM photos ORDER BY id')
+    for (let round = 0; round < 5; round++) {
+      await Promise.all(rows.map((row) => service.setThumbnail(row.id)))
+      const { rows: marked } = await pool.query('SELECT id FROM photos WHERE is_thumbnail')
+      expect(marked).toHaveLength(1)
+    }
+  })
+
+  it('사진 파일 삭제가 실패해도 삭제 요청은 완료되고 오류를 기록한다', async () => {
+    await upload('/admin/beans/1/photos', await png('#c08040'), await png('#4080c0'))
+    const [first, second] = (await repos.bean.get(1))!.photos
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(fsp, 'rm').mockRejectedValue(new Error('EBUSY'))
+
+    const photoRes = await agent.post(`/admin/photos/${first.id}/delete`)
+    expect(photoRes.status).toBe(303)
+    expect(photoRes.headers.location).toBe('/admin/beans/1/edit#photos')
+    const beanRes = await agent.post('/admin/beans/1/delete')
+    expect(beanRes.status).toBe(303)
+    expect(await repos.bean.get(1)).toBeNull()
+    expect(logged).toHaveBeenCalledWith('사진 파일 삭제 실패', expect.arrayContaining([first.url.split('/').pop()]), expect.any(Error))
+    expect(logged).toHaveBeenCalledWith('사진 파일 삭제 실패', expect.arrayContaining([second.url.split('/').pop()]), expect.any(Error))
   })
 })
