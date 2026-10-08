@@ -26,7 +26,7 @@ describe('toIndexEntry', () => {
       score: 0.75,
       price: 18000,
       country: '에티오피아',
-      process: '내추럴', roastLevel: '라이트', variety: '헤어룸', brewMethod: '핸드드립', flavorTags: ['베리', '자스민'],
+      process: '내추럴', roastLevel: '라이트', varieties: ['헤어룸'], brewMethod: '핸드드립', flavorTags: ['베리', '자스민'],
       roastedAt: '2026-09-28',
       isDecaf: false,
     })
@@ -58,7 +58,7 @@ describe('toIndexEntry', () => {
       score: 0.8,
       price: 9000,
       country: '파나마',
-      process: '워시드', roastLevel: null, variety: '게이샤', brewMethod: '필터', flavorTags: ['꽃', '시트러스'],
+      process: '워시드', roastLevel: null, varieties: ['게이샤'], brewMethod: '필터', flavorTags: ['꽃', '시트러스'],
       roastedAt: null,
     })
     expect(entry.searchText).toContain('서울 마포구')
@@ -68,5 +68,12 @@ describe('toIndexEntry', () => {
 })
 
 it('누락된 원두 필드는 null과 빈 태그 배열', () => {
-  expect(toIndexEntry(beanDef, beanEntity({ process: null, roastLevel: null, variety: null, brewMethod: null, flavorTags: null }))).toMatchObject({ process: null, roastLevel: null, variety: null, brewMethod: null, flavorTags: [] })
+  expect(toIndexEntry(beanDef, beanEntity({ process: null, roastLevel: null, variety: null, brewMethod: null, flavorTags: null }))).toMatchObject({ process: null, roastLevel: null, varieties: [], brewMethod: null, flavorTags: [] })
+})
+
+it('품종이 여러 개면 모두 인덱스와 검색 텍스트에 담는다', () => {
+  const entry = toIndexEntry(beanDef, beanEntity({ variety: ['게이샤', '버번'] }))
+  expect(entry.varieties).toEqual(['게이샤', '버번'])
+  expect(entry.searchText).toContain('게이샤')
+  expect(entry.searchText).toContain('버번')
 })

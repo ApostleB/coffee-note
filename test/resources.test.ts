@@ -53,6 +53,13 @@ describe('prepare(beanDef)', () => {
     })
   })
 
+  it('품종은 쉼표로 나눈 배열, 비어 있으면 빈 배열', () => {
+    expect(prepared(beanDef, { ...required, variety: '게이샤, 버번' })).toMatchObject({ variety: ['게이샤', '버번'] })
+    expect(prepared(beanDef, { ...required, variety: '' })).toMatchObject({ variety: [] })
+    expect(prepared(cafeVisitDef, { menu: 'a', cafeName: 'b', variety: ' 게이샤 ,, 게이샤, 버번 ' })).toMatchObject({ variety: ['게이샤', '버번'] })
+    expect(errorsOf(beanDef, { ...required, variety: 'a'.repeat(31) })).toHaveProperty('variety')
+  })
+
   it('네 점수가 모두 있으면 총점을 계산한다', () => {
     const data = prepared(beanDef, { ...required, acidity: '8', sweetness: '7', body: '6', aftertaste: '9' })
     expect(data).toMatchObject({ acidity: 8, sweetness: 7, body: 6, aftertaste: 9, totalScore: 30 })

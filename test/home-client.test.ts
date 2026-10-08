@@ -181,7 +181,7 @@ describe('홈 원두 옵션 필터', () => {
   })
   it('JS 없이도 선택지 렌더링·빈 필드 숨김·HTML escaping', async () => {
     document.body.innerHTML = await ejs.renderFile(path.join(VIEWS_DIR, 'home.ejs'), {
-      ...buildHomeModel([beanEntity({ country: '<산지>', process: null, roastLevel: null, variety: null, brewMethod: null, flavorTags: [] })], cafes), assetVersion: 't', isAdmin: false,
+      ...buildHomeModel([beanEntity({ country: '<산지>', process: null, roastLevel: null, variety: [], brewMethod: null, flavorTags: [] })], cafes), assetVersion: 't', isAdmin: false,
     })
     expect([...$<HTMLSelectElement>('[name="bf-country"]').options].map(o => o.value)).toEqual(['', '<산지>'])
     expect($<HTMLSelectElement>('[name="bf-process"]').parentElement!.hidden).toBe(true)
@@ -210,7 +210,7 @@ describe('초기 탭과 필터 레이아웃', () => {
     expect($('#bean-filters').hidden).toBe(active === 'cafe')
   })
 
-  it.each([{ emptyBeans: [] }, { emptyBeans: [beanEntity({ country: null, process: null, roastLevel: null, variety: null, brewMethod: null, flavorTags: [] })] }])('원두 선택지가 모두 비면 SSR과 탭 왕복 후에도 패널과 토글을 숨긴다', async ({ emptyBeans }) => {
+  it.each([{ emptyBeans: [] }, { emptyBeans: [beanEntity({ country: null, process: null, roastLevel: null, variety: [], brewMethod: null, flavorTags: [] })] }])('원두 선택지가 모두 비면 SSR과 탭 왕복 후에도 패널과 토글을 숨긴다', async ({ emptyBeans }) => {
     document.body.innerHTML = await ejs.renderFile(path.join(VIEWS_DIR, 'home.ejs'), { ...buildHomeModel(emptyBeans, cafes), assetVersion: 't', isAdmin: false })
     expect($('#bean-filters').hidden).toBe(true)
     expect($('#bean-filter-toggle').hidden).toBe(true)

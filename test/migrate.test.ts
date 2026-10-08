@@ -1,6 +1,9 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import type { Pool } from 'pg'
 import { afterAll, beforeAll, expect, it } from 'vitest'
 import { migrate } from '../src/migrate.js'
+import { MIGRATIONS_DIR } from '../src/paths.js'
 import { createTestPool, describeDb, TEST_SCHEMA } from './db.js'
 
 describeDb('migrate', () => {
@@ -42,5 +45,58 @@ describeDb('migrate', () => {
     const insert = 'INSERT INTO photos (bean_id, file_name, thumb_name, is_thumbnail) VALUES ($1, $2, $2, true)'
     await pool.query(insert, [rows[0].id, 'one'])
     await expect(pool.query(insert, [rows[0].id, 'two'])).rejects.toThrow()
+  })
+})
+
+describeDb('migrate 002_variety_array', () => {
+  let pool!: Pool
+
+  beforeAll(async () => {
+    pool = await createTestPool()
+  })
+
+  afterAll(async () => {
+    if (pool) await pool.end()
+  })
+
+  it('품종 컬럼이 text[] NOT NULL DEFAULT {} 이다', async () => {
+    const { rows } = await pool.query(
+      `SELECT table_name, data_type, udt_name, is_nullable, column_default FROM information_schema.columns
+       WHERE table_schema = $1 AND column_name = 'variety' ORDER BY table_name`,
+      [TEST_SCHEMA],
+    )
+    expect(rows.map((r) => [r.table_name, r.data_type, r.udt_name, r.is_nullable])).toEqual([
+      ['beans', 'ARRAY', '_text', 'NO'],
+      ['cafe_visits', 'ARRAY', '_text', 'NO'],
+    ])
+    for (const row of rows) expect(row.column_default).toContain("'{}'")
+  })
+
+  it('001만 적용된 데이터를 쉼표로 나눠 trim·빈 값·중복 제거하며 변환한다', async () => {
+    await pool.query(`DROP SCHEMA ${TEST_SCHEMA} CASCADE`)
+    await pool.query(`CREATE SCHEMA ${TEST_SCHEMA}`)
+    await pool.query('CREATE TABLE schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())')
+    await pool.query(await fs.readFile(path.join(MIGRATIONS_DIR, '001_init.sql'), 'utf8'))
+    await pool.query("INSERT INTO schema_migrations (name) VALUES ('001_init.sql')")
+    await pool.query(
+      `INSERT INTO beans (name, shop, variety) VALUES ('a', 's', 'A, B ,,A'), ('b', 's', NULL), ('c', 's', '  '), ('d', 's', 'Gesha'), ('e', 's', ' , ')`,
+    )
+    await pool.query(`INSERT INTO cafe_visits (menu, cafe_name, variety) VALUES ('m', 'c', '게이샤,버번, 게이샤'), ('n', 'c', NULL)`)
+
+    expect(await migrate(pool, () => {})).toEqual(['002_variety_array.sql'])
+
+    const beans = await pool.query('SELECT name, variety FROM beans ORDER BY name')
+    expect(beans.rows).toEqual([
+      { name: 'a', variety: ['A', 'B'] },
+      { name: 'b', variety: [] },
+      { name: 'c', variety: [] },
+      { name: 'd', variety: ['Gesha'] },
+      { name: 'e', variety: [] },
+    ])
+    const cafes = await pool.query('SELECT menu, variety FROM cafe_visits ORDER BY menu')
+    expect(cafes.rows).toEqual([
+      { menu: 'm', variety: ['게이샤', '버번'] },
+      { menu: 'n', variety: [] },
+    ])
   })
 })

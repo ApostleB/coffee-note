@@ -85,7 +85,9 @@ export function applyQuery(entries, query) {
         (!query.shop || entry.subtitle === query.shop) &&
         (!query.decafOnly || entry.isDecaf) &&
         (activeFilters.length === 0 || (entry.kind === 'bean' && activeFilters.every((key) =>
-          key === 'flavorTag' ? entry.flavorTags.includes(query.beanFilters[key]) : entry[key] === query.beanFilters[key],
+          key === 'flavorTag' ? entry.flavorTags.includes(query.beanFilters[key])
+            : key === 'variety' ? entry.varieties.includes(query.beanFilters[key])
+            : entry[key] === query.beanFilters[key],
         ))) &&
         tokens.every((token) => entry.searchText.includes(token)),
     )
@@ -128,7 +130,8 @@ export function beanFilterOptions(entries) {
   const beans = entries.filter((entry) => entry.kind === 'bean')
   const compare = new Intl.Collator('ko').compare
   return /** @type {Record<BeanFilterKey, string[]>} */ (Object.fromEntries(BEAN_FILTER_KEYS.map((key) => {
-    const values = beans.flatMap((entry) => key === 'flavorTag' ? entry.flavorTags : entry[key] === null ? [] : [entry[key]])
+    const values = beans.flatMap((entry) =>
+      key === 'flavorTag' ? entry.flavorTags : key === 'variety' ? entry.varieties : entry[key] === null ? [] : [entry[key]])
     return [key, [...new Set(values)].sort(compare)]
   })))
 }

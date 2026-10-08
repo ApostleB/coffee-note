@@ -49,7 +49,8 @@ export type DetailModel = {
 }
 
 const collator = new Intl.Collator('ko')
-const tagsOf = (entity: Entity) => (Array.isArray(entity.flavorTags) ? (entity.flavorTags as string[]) : [])
+const listOf = (value: unknown) => (Array.isArray(value) ? (value as string[]) : [])
+const tagsOf = (entity: Entity) => listOf(entity.flavorTags)
 
 export function toCardModel(def: ResourceDef, entity: Entity, today: string): CardModel {
   const scoreValue = entity[def.card.score]
@@ -90,10 +91,11 @@ export function buildHomeModel(beans: Entity[], cafes: Entity[], today: string =
   return {
     // public/js/query.js의 beanFilterOptions와 같은 원두 한정·고유값 정렬 규칙.
     beanOptions: {
-      ...Object.fromEntries(['country', 'process', 'roastLevel', 'variety', 'brewMethod'].map((key) => [
+      ...Object.fromEntries(['country', 'process', 'roastLevel', 'brewMethod'].map((key) => [
         key,
         [...new Set(beans.map((bean) => bean[key]).filter((value): value is string => typeof value === 'string' && value !== ''))].sort(collator.compare),
-      ])) as Record<'country' | 'process' | 'roastLevel' | 'variety' | 'brewMethod', string[]>,
+      ])) as Record<'country' | 'process' | 'roastLevel' | 'brewMethod', string[]>,
+      variety: [...new Set(beans.flatMap((bean) => listOf(bean.variety)))].sort(collator.compare),
       flavorTag: [...new Set(beans.flatMap(tagsOf))].sort(collator.compare),
     },
     title: '',
@@ -104,14 +106,16 @@ export function buildHomeModel(beans: Entity[], cafes: Entity[], today: string =
   }
 }
 
-/** 상세 표의 행에서 빼는 타입 (메모·링크·태그는 따로 보여준다) */
-const NOT_IN_ROWS: FieldType[] = ['textarea', 'url', 'tags']
+/** 상세 표의 행에서 빼는 타입 (메모·링크는 따로 보여준다) */
+const NOT_IN_ROWS: FieldType[] = ['textarea', 'url']
+/** 배지로 따로 보여주므로 상세 표의 행에서 빼는 필드 */
+const BADGE_FIELD = 'flavorTags'
 
 export function buildDetailModel(def: ResourceDef, entity: Entity): DetailModel {
   const fields = allFields(def.sections)
   const skip = new Set([def.card.title, def.card.subtitle, def.card.summary])
   const rows = fields
-    .filter((field) => !skip.has(field.name) && !NOT_IN_ROWS.includes(field.type))
+    .filter((field) => !skip.has(field.name) && field.name !== BADGE_FIELD && !NOT_IN_ROWS.includes(field.type))
     .flatMap((field) => {
       const value = displayValue(field, entity[field.name])
       return value === null ? [] : [{ label: field.label, value }]

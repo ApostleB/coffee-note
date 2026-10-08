@@ -54,6 +54,15 @@ describeDb('repository', () => {
     expect(await repos.bean.get(created.id)).toEqual(created)
   })
 
+  it('품종 배열을 원두·카페 모두 왕복한다', async () => {
+    const bean = await repos.bean.create(prepared(beanDef, { name: 'a', shop: 'b', variety: '게이샤, 버번' }))
+    expect(bean.variety).toEqual(['게이샤', '버번'])
+    expect((await repos.bean.get(bean.id))?.variety).toEqual(['게이샤', '버번'])
+    expect((await repos.bean.create(prepared(beanDef, { name: 'c', shop: 'd' }))).variety).toEqual([])
+    const cafe = await repos.cafe.create(prepared(cafeVisitDef, { menu: 'm', cafeName: 'c', variety: '파카마라' }))
+    expect((await repos.cafe.get(cafe.id))?.variety).toEqual(['파카마라'])
+  })
+
   it('목록은 최근에 만든 것부터', async () => {
     await repos.bean.create(prepared(beanDef, { name: '첫째', shop: 'a' }))
     await repos.bean.create(prepared(beanDef, { name: '둘째', shop: 'b' }))

@@ -49,6 +49,16 @@ describe('toCardModel', () => {
   })
 })
 
+describe('buildHomeModel 품종 선택지', () => {
+  it('모든 품종을 펼쳐 고유·가나다순, 카페 제외', () => {
+    const model = buildHomeModel(
+      [beanEntity({ id: 1, variety: ['버번', '게이샤'] }), beanEntity({ id: 2, variety: ['버번', '티피카'] }), beanEntity({ id: 3, variety: [] })],
+      [cafeEntity({ variety: ['카페전용'] })],
+    )
+    expect(model.beanOptions.variety).toEqual(['게이샤', '버번', '티피카'])
+  })
+})
+
 describe('buildHomeModel', () => {
   it('카드·인덱스·개수·가게 목록', () => {
     const model = buildHomeModel(
@@ -101,6 +111,14 @@ describe('buildDetailModel', () => {
       { label: '메모', text: '두 번째 추출이 더 좋았다' },
     ])
     expect(model.links).toEqual([{ label: '상품 페이지', href: 'https://example.com/guji' }])
+  })
+
+  it('품종은 여러 개를 쉼표로 이어 행에 표시하고 태그 배지에는 넣지 않는다', () => {
+    const model = buildDetailModel(beanDef, beanEntity({ variety: ['게이샤', '버번'] }))
+    expect(model.rows).toContainEqual({ label: '품종', value: '게이샤, 버번' })
+    expect(model.tags).toEqual(['베리', '자스민'])
+    expect(buildDetailModel(beanDef, beanEntity({ variety: [] })).rows.map((r) => r.label)).not.toContain('품종')
+    expect(buildDetailModel(cafeVisitDef, cafeEntity({ variety: ['게이샤', '버번'] })).rows).toContainEqual({ label: '품종', value: '게이샤, 버번' })
   })
 
   it('디카페인이면 행에 표시', () => {

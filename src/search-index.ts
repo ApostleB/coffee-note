@@ -16,7 +16,7 @@ export type IndexEntry = {
   country: string | null
   process: string | null
   roastLevel: string | null
-  variety: string | null
+  varieties: string[]
   brewMethod: string | null
   flavorTags: string[]
   roastedAt: string | null
@@ -35,6 +35,7 @@ export function normalize(value: string): string {
 export const entryKey = (def: ResourceDef, id: number) => `${def.kind}-${id}`
 
 const textOrNull = (value: unknown) => (typeof value === 'string' && value !== '' ? value : null)
+const stringList = (value: unknown) => (Array.isArray(value) ? (value as string[]) : [])
 const numberOrNull = (value: unknown) => (typeof value === 'number' ? value : null)
 
 export function toIndexEntry(def: ResourceDef, entity: Entity): IndexEntry {
@@ -58,9 +59,9 @@ export function toIndexEntry(def: ResourceDef, entity: Entity): IndexEntry {
     country: textOrNull(entity.country),
     process: textOrNull(entity.process),
     roastLevel: def.kind === 'bean' ? textOrNull(entity.roastLevel) : null,
-    variety: textOrNull(entity.variety),
+    varieties: stringList(entity.variety),
     brewMethod: textOrNull(entity.brewMethod),
-    flavorTags: Array.isArray(entity.flavorTags) ? entity.flavorTags as string[] : [],
+    flavorTags: stringList(entity.flavorTags),
     roastedAt: textOrNull(entity.roastedAt),
     isDecaf: entity.isDecaf === true,
     searchText: normalize(parts.filter((p): p is string => typeof p === 'string' && p !== '').join(' ')),

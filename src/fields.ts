@@ -38,7 +38,7 @@ export const BEAN_SECTIONS: Section[] = [
     fields: [
       { name: 'country', label: '산지 국가', type: 'text', max: 100, placeholder: '에티오피아' },
       { name: 'region', label: '산지 지역·농장', type: 'text' },
-      { name: 'variety', label: '품종', type: 'text', placeholder: '헤어룸' },
+      { name: 'variety', label: '품종', type: 'tags', placeholder: '게이샤, 버번' },
       { name: 'process', label: '가공', type: 'text', max: 100, placeholder: '내추럴' },
       { name: 'roastLevel', label: '로스팅 포인트', type: 'text', max: 50, placeholder: '라이트' },
       { name: 'isDecaf', label: '디카페인', type: 'bool' },
@@ -85,7 +85,7 @@ export const CAFE_SECTIONS: Section[] = [
     title: '원두',
     fields: [
       { name: 'country', label: '산지 국가', type: 'text', max: 100 },
-      { name: 'variety', label: '품종', type: 'text' },
+      { name: 'variety', label: '품종', type: 'tags', placeholder: '게이샤, 버번' },
       { name: 'process', label: '가공', type: 'text', max: 100 },
       { name: 'isDecaf', label: '디카페인', type: 'bool' },
       { name: 'flavorTags', label: '향미 노트', type: 'tags', wide: true, placeholder: '꽃, 시트러스' },

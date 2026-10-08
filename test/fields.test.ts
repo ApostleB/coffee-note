@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BEAN_SECTIONS, buildSchema, fieldErrors, formValues, toColumn, toTagList } from '../src/fields.js'
+import { BEAN_SECTIONS, CAFE_SECTIONS, buildSchema, findField, fieldErrors, formValues, toColumn, toTagList } from '../src/fields.js'
 
 describe('toColumn', () => {
   it.each([
@@ -24,6 +24,19 @@ describe('toTagList', () => {
 
   it('값이 없으면 빈 배열', () => {
     expect(toTagList(undefined)).toEqual([])
+  })
+})
+
+describe('품종 필드', () => {
+  it('원두·카페 모두 쉼표 구분 tags 타입', () => {
+    for (const sections of [BEAN_SECTIONS, CAFE_SECTIONS]) {
+      expect(findField(sections, 'variety')).toMatchObject({ type: 'tags', label: '품종' })
+    }
+    expect(findField(BEAN_SECTIONS, 'variety')?.placeholder).toBe('게이샤, 버번')
+  })
+
+  it('폼 값은 쉼표로 이은 문자열', () => {
+    expect(formValues(BEAN_SECTIONS, { variety: ['게이샤', '버번'] })).toMatchObject({ variety: '게이샤, 버번' })
   })
 })
 
