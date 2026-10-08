@@ -9,12 +9,12 @@ import {
 } from '../auth.js'
 import type { Config } from '../config.js'
 import { HttpError, parseId } from '../errors.js'
-import { allFields, formValues } from '../fields.js'
+import { formValues } from '../fields.js'
 import type { LoginGuard } from '../login-guard.js'
 import { receivePhotos, type PhotoOwner, type PhotoService } from '../photos.js'
 import { DEFS, prepare, type Entity, type ResourceDef } from '../resources.js'
 import { toIndexEntry } from '../search-index.js'
-import type { Repos, ResourceRepo } from '../repository.js'
+import type { Repos } from '../repository.js'
 
 export type AdminDeps = { config: Config; repos: Repos; photos: PhotoService; loginGuard: LoginGuard }
 
@@ -46,19 +46,6 @@ function renderForm(res: Response, def: ResourceDef, options: FormOptions): void
     copied: options.copied ?? false,
     photoError: options.photoError ?? null,
   })
-}
-
-const TITLE_MAX = 200
-const COPY_SUFFIX_RE = / \(복사(?: \d+)?\)$/
-
-/** 원래 제목 뒤에 ' (복사)', ' (복사 2)'…를 붙여 같은 종류 안에서 겹치지 않는 제목을 고른다 */
-async function copiedTitle(repo: ResourceRepo, original: string): Promise<string> {
-  const root = original.replace(COPY_SUFFIX_RE, '')
-  for (let n = 1; ; n += 1) {
-    const suffix = n === 1 ? ' (복사)' : ` (복사 ${n})`
-    const title = `${root.slice(0, TITLE_MAX - suffix.length)}${suffix}`
-    if (!(await repo.titleExists(title))) return title
-  }
 }
 
 export function adminRouter({ config, repos, photos, loginGuard }: AdminDeps): Router {
@@ -164,12 +151,9 @@ export function adminRouter({ config, repos, photos, loginGuard }: AdminDeps): R
     })
 
     router.post(`/${def.path}/:id/copy`, async (req, res) => {
-      const source = await repo.get(parseId(req.params.id))
-      if (!source) throw recordNotFound()
       // 사진은 파일 공유로 삭제가 꼬이지 않도록 복사하지 않는다
-      const fields = Object.fromEntries(allFields(def.sections).map((f) => [f.name, source[f.name]]))
-      fields[def.card.title] = await copiedTitle(repo, String(source[def.card.title]))
-      const created = await repo.create({ ...fields, ...def.derive(fields) })
+      const created = await repo.copy(parseId(req.params.id))
+      if (!created) throw recordNotFound()
       res.redirect(303, `${base}/${created.id}/edit?copied=1`)
     })
 

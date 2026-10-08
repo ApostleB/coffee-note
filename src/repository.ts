@@ -1,14 +1,28 @@
 import type { Pool } from 'pg'
 import { withTransaction } from './db.js'
-import { toColumn } from './fields.js'
+import { allFields, toColumn } from './fields.js'
 import { beanDef, cafeVisitDef, columnsOf, toEntity, type Entity, type Kind, type PhotoRow, type ResourceDef } from './resources.js'
+
+const TITLE_MAX = 200
+const COPY_SUFFIX_RE = / \(복사(?: \d+)?\)$/
+
+/** n번째 복사 제목. 제목 검증(UTF-16 길이 200)을 넘지 않도록 문자 단위로 잘라 서로게이트 쌍이 깨지지 않게 한다 */
+function copyTitle(root: string, n: number): string {
+  const suffix = n === 1 ? ' (복사)' : ` (복사 ${n})`
+  let head = ''
+  for (const char of root) {
+    if (head.length + char.length + suffix.length > TITLE_MAX) break
+    head += char
+  }
+  return head + suffix
+}
 
 export type ResourceRepo = {
   list(): Promise<Entity[]>
   get(id: number): Promise<Entity | null>
   create(data: Record<string, unknown>): Promise<Entity>
-  /** 같은 제목(카드 제목 필드)의 글이 이미 있는지 */
-  titleExists(title: string): Promise<boolean>
+  /** 글을 복사해 새로 만든다(사진 제외, 제목에 ' (복사)' 계열 접미사). 원본이 없으면 null */
+  copy(id: number): Promise<Entity | null>
   update(id: number, data: Record<string, unknown>): Promise<Entity | null>
   /** 삭제된 글에 붙어 있던 사진 행(파일 정리용). 글이 없으면 null */
   remove(id: number): Promise<PhotoRow[] | null>
@@ -39,6 +53,12 @@ export function createResourceRepo(pool: Pool, def: ResourceDef): ResourceRepo {
     return rows.map((row) => toEntity(def, row, byOwner.get(row.id as number) ?? []))
   }
 
+  const insert = (db: Pick<Pool, 'query'>, data: Record<string, unknown>) =>
+    db.query(
+      `INSERT INTO ${def.table} (${names.join(', ')}) VALUES (${names.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
+      values(data),
+    )
+
   return {
     async list() {
       const { rows } = await pool.query(`SELECT * FROM ${def.table} ORDER BY id DESC`)
@@ -52,18 +72,31 @@ export function createResourceRepo(pool: Pool, def: ResourceDef): ResourceRepo {
     },
 
     async create(data) {
-      const params = names.map((_, i) => `$${i + 1}`).join(', ')
-      const { rows } = await pool.query(
-        `INSERT INTO ${def.table} (${names.join(', ')}) VALUES (${params}) RETURNING *`,
-        values(data),
-      )
+      const { rows } = await insert(pool, data)
       const [entity] = await hydrate(rows)
       return entity
     },
 
-    async titleExists(title) {
-      const { rowCount } = await pool.query(`SELECT 1 FROM ${def.table} WHERE ${toColumn(def.card.title)} = $1 LIMIT 1`, [title])
-      return (rowCount ?? 0) > 0
+    async copy(id) {
+      // 같은 종류의 복사는 직렬화해서, 제목을 고른 뒤 INSERT하기 전에 다른 복사가 끼어들지 못하게 한다
+      return withTransaction(pool, async (client) => {
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`copy:${def.table}`])
+        const { rows } = await client.query(`SELECT * FROM ${def.table} WHERE id = $1`, [id])
+        if (rows.length === 0) return null
+        const source = toEntity(def, rows[0], [])
+        const fields = Object.fromEntries(allFields(def.sections).map((f) => [f.name, source[f.name]]))
+        const titleColumn = toColumn(def.card.title)
+        const root = String(source[def.card.title]).replace(COPY_SUFFIX_RE, '')
+        let title = ''
+        for (let n = 1; ; n += 1) {
+          title = copyTitle(root, n)
+          const { rowCount } = await client.query(`SELECT 1 FROM ${def.table} WHERE ${titleColumn} = $1 LIMIT 1`, [title])
+          if (!rowCount) break
+        }
+        fields[def.card.title] = title
+        const { rows: created } = await insert(client, { ...fields, ...def.derive(fields) })
+        return toEntity(def, created[0], [])
+      })
     },
 
     async update(id, data) {

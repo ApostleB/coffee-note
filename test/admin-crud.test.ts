@@ -234,6 +234,25 @@ describeDb('관리자 작성·수정·삭제', () => {
       expect(names.filter((n) => n.endsWith(' (복사)') || n.endsWith(' (복사 2)'))).toHaveLength(2)
     })
 
+    it('이모지 제목도 문자가 깨지지 않게 200자 안에서 복사한다', async () => {
+      const src = await repos.bean.create(prepared(beanDef, { name: '😀'.repeat(100), shop: '리브레' }))
+      await agent.post(`/admin/beans/${src.id}/copy`).expect(303)
+      const copy = (await repos.bean.list()).find((b) => b.id !== src.id)!
+      const name = copy.name as string
+      expect(name).not.toContain('\uFFFD')
+      expect(name.length).toBeLessThanOrEqual(200)
+      expect(name.endsWith(' (복사)')).toBe(true)
+      expect(name.slice(0, -' (복사)'.length)).toBe('😀'.repeat(97))
+    })
+
+    it('같은 원본을 동시에 복사해도 제목이 겹치지 않는다', async () => {
+      const src = await repos.bean.create(prepared(beanDef, beanBody))
+      const results = await Promise.all([agent.post(`/admin/beans/${src.id}/copy`), agent.post(`/admin/beans/${src.id}/copy`)])
+      expect(results.map((r) => r.status)).toEqual([303, 303])
+      const names = (await repos.bean.list()).map((b) => b.name).sort()
+      expect(names).toEqual(['에티오피아 구지', '에티오피아 구지 (복사 2)', '에티오피아 구지 (복사)'])
+    })
+
     it('없는 글은 404, 로그인하지 않으면 로그인으로, 다른 출처는 403', async () => {
       expect((await agent.post('/admin/beans/999/copy')).status).toBe(404)
       expect((await agent.post('/admin/cafe-visits/999/copy')).status).toBe(404)
