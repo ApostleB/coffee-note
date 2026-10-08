@@ -1,0 +1,77 @@
+<%- include('partials/head') %>
+<%- include('partials/site-header') %>
+<main class="container pb-5">
+  <ul class="nav nav-underline mt-3" id="scope-tabs">
+    <li class="nav-item">
+      <button type="button" class="nav-link active" data-scope-tab="bean" aria-current="true">
+        원두 노트 <span class="badge rounded-pill bg-body-tertiary text-body-secondary"><%= counts.bean %></span>
+      </button>
+    </li>
+    <li class="nav-item">
+      <button type="button" class="nav-link" data-scope-tab="cafe">
+        카페 후기 <span class="badge rounded-pill bg-body-tertiary text-body-secondary"><%= counts.cafe %></span>
+      </button>
+    </li>
+  </ul>
+
+  <form id="toolbar" class="coffee-toolbar sticky-top py-3" role="search">
+    <div class="row g-2 align-items-center">
+      <div class="col-12 col-lg">
+        <div class="input-group">
+          <span class="input-group-text bg-body"><i class="bi bi-search"></i></span>
+          <input type="search" name="text" class="form-control" placeholder="원두, 가게, 산지, 향미로 검색" aria-label="검색어" autocomplete="off" enterkeyhint="search">
+        </div>
+      </div>
+      <div class="col-12 col-lg-auto">
+        <div class="coffee-toolbar__options">
+          <select name="scope" class="form-select" aria-label="검색 범위">
+            <option value="all">전체</option>
+            <option value="bean" selected>원두</option>
+            <option value="cafe">카페</option>
+          </select>
+          <select name="sort" class="form-select" aria-label="정렬">
+            <option value="newest" selected>최신순</option>
+            <option value="oldest">오래된순</option>
+            <option value="score">점수 높은순</option>
+            <option value="name">이름순</option>
+            <option value="priceAsc">가격 낮은순</option>
+            <option value="priceDesc">가격 높은순</option>
+            <option value="roasted" data-bean-only>최신 로스팅순</option>
+            <option value="country">원두 국가순</option>
+          </select>
+          <select name="shop" class="form-select" aria-label="가게">
+            <option value="">모든 가게</option>
+            <% shops.forEach((shop) => { %><option value="<%= shop %>"><%= shop %></option><% }) %>
+          </select>
+          <div class="form-check form-switch mb-0 text-nowrap">
+            <input class="form-check-input" type="checkbox" role="switch" id="decaf-only" name="decafOnly">
+            <label class="form-check-label" for="decaf-only">디카페인</label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <p class="small text-body-secondary mb-2" id="result-count" aria-live="polite"><%= counts.bean %>개</p>
+  <div id="card-grid" class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-4 row-cols-xxl-5 g-3" data-scope="bean">
+    <% cards.forEach((card) => { %><%- include('partials/card', { card }) %><% }) %>
+  </div>
+  <div id="empty-state" class="text-center text-body-secondary py-5"<%= counts.bean > 0 ? ' hidden' : '' %>>
+    <i class="bi bi-cup fs-1"></i>
+    <p class="mt-2 mb-0">조건에 맞는 기록이 없습니다.</p>
+  </div>
+</main>
+
+<div class="modal fade" id="detail-modal" tabindex="-1" aria-labelledby="detail-title" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-md-down">
+    <div class="modal-content">
+      <div class="modal-header border-0 py-2">
+        <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal" aria-label="닫기"></button>
+      </div>
+      <div class="modal-body p-0" id="detail-body"></div>
+    </div>
+  </div>
+</div>
+
+<script type="application/json" id="coffee-index"><%- indexJson %></script>
+<%- include('partials/foot', { scripts: ['/js/home-main.js'] }) %>

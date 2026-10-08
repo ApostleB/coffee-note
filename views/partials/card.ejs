@@ -1,0 +1,42 @@
+<div class="col" data-key="<%= card.key %>" data-kind="<%= card.kind %>"<%= card.hidden ? ' hidden' : '' %>>
+  <article class="card h-100 shadow-sm coffee-card">
+    <div class="position-relative">
+      <div class="ratio ratio-4x3 bg-body-tertiary rounded-top overflow-hidden">
+        <% if (card.thumbnailUrl) { %>
+          <img src="<%= card.thumbnailUrl %>" alt="" loading="lazy" class="object-fit-cover">
+        <% } else { %>
+          <div class="coffee-card__placeholder text-body-tertiary">
+            <i class="bi <%= card.kind === 'bean' ? 'bi-basket' : 'bi-cup-hot' %>"></i>
+          </div>
+        <% } %>
+      </div>
+      <div class="coffee-card__badges position-absolute top-0 start-0 p-2">
+        <span class="badge text-bg-light card-kind"><%= card.kindLabel %></span>
+        <% if (card.isDecaf) { %><span class="badge text-bg-info">디카페인</span><% } %>
+        <% if (card.ready) { %><span class="badge text-bg-success">시음 적기</span><% } %>
+      </div>
+    </div>
+    <div class="card-body coffee-card__body">
+      <h3 class="card-title h6 mb-0 text-truncate-2">
+        <a class="stretched-link text-reset text-decoration-none" href="<%= card.href %>" data-detail><%= card.title %></a>
+      </h3>
+      <p class="card-subtitle small text-body-secondary text-truncate mb-0"><%= card.subtitle %></p>
+      <% if (card.meta) { %><p class="small text-body-secondary mb-0"><%= card.meta %></p><% } %>
+      <% if (card.summary) { %><p class="card-text small mb-0 text-truncate-2"><%= card.summary %></p><% } %>
+      <% if (card.tags.length) { %>
+        <div class="coffee-tags">
+          <% card.tags.forEach((tag) => { %><span class="badge rounded-pill bg-secondary-subtle text-secondary-emphasis fw-normal">#<%= tag %></span><% }) %>
+        </div>
+      <% } %>
+      <% if (card.score) { %>
+        <div class="coffee-card__score">
+          <% if (card.score.type === 'total') { %>
+            <span class="fw-bold text-primary fs-5"><%= card.score.value %></span><small class="text-body-secondary"> / <%= card.score.max %></small>
+          <% } else { %>
+            <%- include('stars', { value: card.score.value }) %>
+          <% } %>
+        </div>
+      <% } %>
+    </div>
+  </article>
+</div>

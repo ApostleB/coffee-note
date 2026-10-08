@@ -4,6 +4,8 @@ import type { Pool } from 'pg'
 import type { Config } from './config.js'
 import { errorHandler, notFound } from './errors.js'
 import { PUBLIC_DIR, VIEWS_DIR, vendorDir } from './paths.js'
+import { createRepos } from './repository.js'
+import { publicRouter } from './routes/public.js'
 
 export type AppDeps = { config: Config; pool: Pool }
 
@@ -31,9 +33,13 @@ export function createApp({ config, pool }: AppDeps) {
 
   app.use(express.urlencoded({ extended: false, limit: '100kb' }))
   app.use(cookieParser(config.sessionSecret))
+  const repos = createRepos(pool)
+
   app.get('/healthz', (_req, res) => {
     res.json({ ok: true })
   })
+
+  app.use(publicRouter(repos))
 
   app.use(notFound)
   app.use(errorHandler)

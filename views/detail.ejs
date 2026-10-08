@@ -1,0 +1,9 @@
+<%- include('partials/head') %>
+<%- include('partials/site-header') %>
+<main class="container py-3 py-md-4">
+  <a class="btn btn-link px-0 mb-2" href="/"><i class="bi bi-arrow-left"></i> 목록으로</a>
+  <article class="card overflow-hidden mx-auto coffee-detail">
+    <%- include('partials/detail') %>
+  </article>
+</main>
+<%- include('partials/foot', { scripts: ['/js/detail-main.js'] }) %>

@@ -1,0 +1,51 @@
+<% if (photos.length) { const carouselId = `gallery-${key}` %>
+<div id="<%= carouselId %>" class="carousel slide coffee-carousel" data-bs-touch="true">
+  <div class="carousel-inner">
+    <% photos.forEach((photo, i) => { %>
+      <div class="carousel-item<%= i === 0 ? ' active' : '' %>">
+        <img src="<%= photo.url %>" class="d-block w-100" alt="<%= heading %> 사진 <%= i + 1 %>">
+      </div>
+    <% }) %>
+  </div>
+  <% if (photos.length > 1) { %>
+    <button class="carousel-control-prev" type="button" data-bs-target="#<%= carouselId %>" data-bs-slide="prev">
+      <span class="carousel-control-prev-icon" aria-hidden="true"></span><span class="visually-hidden">이전 사진</span>
+    </button>
+    <button class="carousel-control-next" type="button" data-bs-target="#<%= carouselId %>" data-bs-slide="next">
+      <span class="carousel-control-next-icon" aria-hidden="true"></span><span class="visually-hidden">다음 사진</span>
+    </button>
+  <% } %>
+</div>
+<% } %>
+<div class="p-3 p-md-4">
+  <p class="text-primary small fw-semibold mb-1"><%= kindLabel %></p>
+  <h2 class="h4 mb-1" id="detail-title"><%= heading %></h2>
+  <p class="text-body-secondary mb-3"><%= subtitle %></p>
+  <% if (tags.length) { %>
+    <div class="coffee-tags coffee-tags--wrap mb-3">
+      <% tags.forEach((tag) => { %><span class="badge rounded-pill bg-secondary-subtle text-secondary-emphasis fw-normal">#<%= tag %></span><% }) %>
+    </div>
+  <% } %>
+  <% if (rows.length) { %>
+    <dl class="row small mb-0">
+      <% rows.forEach((row) => { %>
+        <dt class="col-5 col-sm-4 fw-normal text-body-secondary"><%= row.label %></dt>
+        <dd class="col-7 col-sm-8"><%= row.value %></dd>
+      <% }) %>
+    </dl>
+  <% } %>
+  <% memos.forEach((memo) => { %>
+    <h3 class="h6 mt-3"><%= memo.label %></h3>
+    <p class="coffee-memo mb-0"><%= memo.text %></p>
+  <% }) %>
+  <% if (links.length || isAdmin) { %>
+    <div class="coffee-actions mt-4">
+      <% links.forEach((link) => { %>
+        <a class="btn btn-sm btn-outline-primary" href="<%= link.href %>" target="_blank" rel="noopener noreferrer"><i class="bi bi-box-arrow-up-right"></i> <%= link.label %></a>
+      <% }) %>
+      <% if (isAdmin) { %>
+        <a class="btn btn-sm btn-outline-secondary" href="<%= editHref %>"><i class="bi bi-pencil"></i> 수정</a>
+      <% } %>
+    </div>
+  <% } %>
+</div>
