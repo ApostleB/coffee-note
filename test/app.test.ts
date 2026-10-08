@@ -34,6 +34,23 @@ describe('app', () => {
     expect(res.type).toBe(type)
   })
 
+  it.each(['/js/query.js', '/js/home.js', '/js/carousel.js', '/js/admin.js'])(
+    '모듈 하위 import인 %s는 배포 뒤 즉시 갱신되도록 매번 재검증한다',
+    async (url) => {
+      const res = await request(app).get(url)
+      expect(res.status).toBe(200)
+      expect(res.headers['cache-control']).toBe('no-cache')
+      expect(res.headers.etag).toBeTruthy()
+      const again = await request(app).get(url).set('If-None-Match', res.headers.etag)
+      expect(again.status).toBe(304)
+    },
+  )
+
+  it('내용이 바뀌지 않는 vendor 정적 파일은 계속 캐시한다', async () => {
+    const res = await request(app).get('/vendor/bootstrap/css/bootstrap.min.css')
+    expect(res.headers['cache-control']).toContain('max-age=604800')
+  })
+
   it('본문이 너무 크면 오류 페이지로 응답한다', async () => {
     const res = await request(app).post('/healthz').type('form').send('x=' + 'a'.repeat(102401))
     expect(res.status).toBe(413)

@@ -25,7 +25,15 @@ export function createApp({ config, pool, loginGuard = createLoginGuard() }: App
   app.locals.assetVersion = Date.now().toString(36)
 
   const staticOptions = { maxAge: '7d' }
-  app.use(express.static(PUBLIC_DIR, staticOptions))
+  // ES 모듈의 하위 import(./query.js 등)에는 ?v=를 붙일 수 없으므로 JS는 매번 ETag로 재검증한다
+  app.use(
+    express.static(PUBLIC_DIR, {
+      ...staticOptions,
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.js')) res.setHeader('Cache-Control', 'no-cache')
+      },
+    }),
+  )
   app.use('/vendor/bootstrap', express.static(vendorDir('bootstrap', 'dist'), staticOptions))
   app.use('/vendor/bootstrap-icons', express.static(vendorDir('bootstrap-icons', 'font'), staticOptions))
   app.use('/vendor/pretendard', express.static(vendorDir('pretendard', 'dist/web/variable'), staticOptions))
