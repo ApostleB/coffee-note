@@ -1,0 +1,11 @@
+<header class="border-bottom bg-body">
+  <nav class="navbar container">
+    <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="/">
+      <i class="bi bi-cup-hot-fill text-primary"></i> Coffee Note
+    </a>
+    <span class="navbar-text small d-none d-sm-inline me-auto">나의 커피 기록</span>
+    <% if (isAdmin) { %>
+      <a class="btn btn-sm btn-outline-secondary" href="/admin"><i class="bi bi-gear"></i> 관리</a>
+    <% } %>
+  </nav>
+</header>

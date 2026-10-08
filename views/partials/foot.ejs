@@ -1,0 +1,6 @@
+<script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<% (locals.scripts || []).forEach((src) => { %>
+<script type="module" src="<%= src %>?v=<%= assetVersion %>"></script>
+<% }) %>
+</body>
+</html>

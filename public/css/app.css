@@ -1,0 +1,94 @@
+/* ===== 테마: Bootstrap 변수를 커피 톤으로 덮어쓴다 ===== */
+:root,
+[data-bs-theme='light'] {
+  --bs-body-font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui,
+    'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  --bs-body-bg: #f7f3ee;
+  --bs-body-color: #2b1d14;
+  --bs-primary: #8b4a2b;
+  --bs-primary-rgb: 139, 74, 43;
+  --bs-link-color: #8b4a2b;
+  --bs-link-color-rgb: 139, 74, 43;
+  --bs-link-hover-color: #6c3820;
+  --bs-link-hover-color-rgb: 108, 56, 32;
+  --bs-border-color: #e3d8ca;
+  --bs-tertiary-bg: #efe7dc;
+  --bs-tertiary-bg-rgb: 239, 231, 220;
+  --coffee-surface: #fffdf9;
+  --coffee-primary-hover: #74391f;
+  --coffee-on-primary: #ffffff;
+}
+
+[data-bs-theme='dark'] {
+  --bs-body-bg: #17120e;
+  --bs-body-color: #f1e8de;
+  --bs-primary: #e09a6a;
+  --bs-primary-rgb: 224, 154, 106;
+  --bs-link-color: #e09a6a;
+  --bs-link-color-rgb: 224, 154, 106;
+  --bs-link-hover-color: #eab08a;
+  --bs-link-hover-color-rgb: 234, 176, 138;
+  --bs-border-color: #3a2f26;
+  --bs-tertiary-bg: #2c231c;
+  --bs-tertiary-bg-rgb: 44, 35, 28;
+  --coffee-surface: #211a15;
+  --coffee-primary-hover: #eab08a;
+  --coffee-on-primary: #1a120c;
+}
+
+.card { --bs-card-bg: var(--coffee-surface); }
+.modal { --bs-modal-bg: var(--coffee-surface); }
+.list-group { --bs-list-group-bg: var(--coffee-surface); }
+
+.btn-primary {
+  --bs-btn-color: var(--coffee-on-primary);
+  --bs-btn-bg: var(--bs-primary);
+  --bs-btn-border-color: var(--bs-primary);
+  --bs-btn-hover-color: var(--coffee-on-primary);
+  --bs-btn-hover-bg: var(--coffee-primary-hover);
+  --bs-btn-hover-border-color: var(--coffee-primary-hover);
+  --bs-btn-active-color: var(--coffee-on-primary);
+  --bs-btn-active-bg: var(--coffee-primary-hover);
+  --bs-btn-active-border-color: var(--coffee-primary-hover);
+  --bs-btn-disabled-color: var(--coffee-on-primary);
+  --bs-btn-disabled-bg: var(--bs-primary);
+  --bs-btn-disabled-border-color: var(--bs-primary);
+}
+
+.btn-outline-primary {
+  --bs-btn-color: var(--bs-primary);
+  --bs-btn-border-color: var(--bs-primary);
+  --bs-btn-hover-color: var(--coffee-on-primary);
+  --bs-btn-hover-bg: var(--bs-primary);
+  --bs-btn-hover-border-color: var(--bs-primary);
+  --bs-btn-active-color: var(--coffee-on-primary);
+  --bs-btn-active-bg: var(--bs-primary);
+  --bs-btn-active-border-color: var(--bs-primary);
+}
+
+.form-control:focus,
+.form-select:focus,
+.form-check-input:focus {
+  border-color: rgba(var(--bs-primary-rgb), 0.6);
+  box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.2);
+}
+
+.form-check-input:checked {
+  background-color: var(--bs-primary);
+  border-color: var(--bs-primary);
+}
+
+.nav-underline .nav-link.active {
+  color: var(--bs-body-color);
+  border-bottom-color: var(--bs-primary);
+}
+
+/* ===== 공통 유틸리티 ===== */
+.min-w-0 { min-width: 0; }
+
+.text-truncate-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
