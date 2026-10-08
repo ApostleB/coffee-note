@@ -228,3 +228,25 @@
 }
 
 .coffee-list-item[hidden] { display: none; }
+
+
+/* 원두 옵션 필터: JS가 없으면 선택지를 그대로 보여준다. */
+.coffee-bean-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+  color: var(--bs-body-color);
+}
+.coffee-bean-filters[hidden],
+.coffee-bean-filter-grid > [hidden],
+.coffee-bean-filter-toggle[hidden] { display: none; }
+
+@media (min-width: 992px) {
+  .coffee-bean-filter-toggle { display: none; }
+  #bean-filter-panel.collapse, #bean-filter-panel.collapsing {
+    display: block;
+    height: auto;
+  }
+  .coffee-bean-filter-grid { grid-template-columns: repeat(6, minmax(0, 1fr)) auto; }
+}

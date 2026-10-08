@@ -50,6 +50,24 @@
         </div>
       </div>
     </div>
+    <section id="bean-filters" class="coffee-bean-filters mt-2" aria-label="원두 필터">
+      <button type="button" id="bean-filter-toggle" class="btn btn-outline-secondary coffee-bean-filter-toggle" data-bs-toggle="collapse" data-bs-target="#bean-filter-panel" aria-controls="bean-filter-panel" aria-expanded="false" hidden>
+        필터 <span id="bean-filter-count" class="badge bg-secondary" aria-live="polite" hidden></span>
+      </button>
+      <div id="bean-filter-panel">
+        <div class="coffee-bean-filter-grid">
+          <% Object.entries({ country: '산지 국가', process: '가공', roastLevel: '로스팅', variety: '품종', brewMethod: '추출방식', flavorTag: '향미' }).forEach(([key, label]) => { %>
+            <div<%= beanOptions[key].length === 0 ? ' hidden' : '' %>>
+              <select name="bf-<%= key %>" class="form-select" aria-label="<%= label %>">
+                <option value=""><%= label %> 전체</option>
+                <% beanOptions[key].forEach((value) => { %><option value="<%= value %>"><%= value %></option><% }) %>
+              </select>
+            </div>
+          <% }) %>
+          <button type="button" id="bean-filter-reset" class="btn btn-outline-secondary" hidden>필터 초기화</button>
+        </div>
+      </div>
+    </section>
   </form>
 
   <p class="small text-body-secondary mb-2" id="result-count" aria-live="polite"><%= counts.bean %>개</p>

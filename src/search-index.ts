@@ -14,6 +14,11 @@ export type IndexEntry = {
   score: number | null
   price: number | null
   country: string | null
+  process: string | null
+  roastLevel: string | null
+  variety: string | null
+  brewMethod: string | null
+  flavorTags: string[]
   roastedAt: string | null
   isDecaf: boolean
   searchText: string
@@ -51,6 +56,11 @@ export function toIndexEntry(def: ResourceDef, entity: Entity): IndexEntry {
     score: score === null ? null : score / def.card.scoreMax,
     price: numberOrNull(entity.price),
     country: textOrNull(entity.country),
+    process: textOrNull(entity.process),
+    roastLevel: def.kind === 'bean' ? textOrNull(entity.roastLevel) : null,
+    variety: textOrNull(entity.variety),
+    brewMethod: textOrNull(entity.brewMethod),
+    flavorTags: Array.isArray(entity.flavorTags) ? entity.flavorTags as string[] : [],
     roastedAt: textOrNull(entity.roastedAt),
     isDecaf: entity.isDecaf === true,
     searchText: normalize(parts.filter((p): p is string => typeof p === 'string' && p !== '').join(' ')),

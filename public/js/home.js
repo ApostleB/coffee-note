@@ -1,6 +1,6 @@
 // @ts-check
 import { initCarousels } from './carousel.js'
-import { applyQuery, shopOptions, updateQuery } from './query.js'
+import { applyQuery, BEAN_FILTER_KEYS, DEFAULT_QUERY, shopOptions, updateQuery } from './query.js'
 
 /** @typedef {import('./query.js').Query} Query */
 /** @typedef {import('./query.js').IndexEntry} IndexEntry */
@@ -29,6 +29,14 @@ export function initHome(doc, deps = {}) {
   const sortSelect = /** @type {HTMLSelectElement} */ (form.elements.namedItem('sort'))
   const shopSelect = /** @type {HTMLSelectElement} */ (form.elements.namedItem('shop'))
   const decafInput = /** @type {HTMLInputElement} */ (form.elements.namedItem('decafOnly'))
+  const beanFiltersEl = /** @type {HTMLElement} */ (doc.getElementById('bean-filters'))
+  const beanPanel = /** @type {HTMLElement} */ (doc.getElementById('bean-filter-panel'))
+  const beanToggle = /** @type {HTMLButtonElement} */ (doc.getElementById('bean-filter-toggle'))
+  const beanCount = /** @type {HTMLElement} */ (doc.getElementById('bean-filter-count'))
+  const beanReset = /** @type {HTMLButtonElement} */ (doc.getElementById('bean-filter-reset'))
+  const beanSelects = BEAN_FILTER_KEYS.map((key) => ({ key, select: /** @type {HTMLSelectElement} */ (form.elements.namedItem(`bf-${key}`)) }))
+  beanPanel.classList.add('collapse')
+  beanToggle.hidden = false
   const tabs = /** @type {HTMLElement[]} */ ([...doc.querySelectorAll('[data-scope-tab]')])
 
   /** @type {Map<string, HTMLElement>} */
@@ -46,7 +54,11 @@ export function initHome(doc, deps = {}) {
     sort: /** @type {Query['sort']} */ (sortSelect.value),
     shop: shopSelect.value,
     decafOnly: decafInput.checked,
+    beanFilters: { ...DEFAULT_QUERY.beanFilters },
   }
+
+  for (const { key, select } of beanSelects) query.beanFilters[key] = select.value
+  if (query.scope !== 'bean') query.beanFilters = { ...DEFAULT_QUERY.beanFilters }
 
   /**
    * @param {string} value
@@ -82,6 +94,15 @@ export function initHome(doc, deps = {}) {
   }
 
   function render() {
+    beanFiltersEl.hidden = query.scope !== 'bean'
+    let appliedCount = 0
+    for (const { key, select } of beanSelects) {
+      select.value = query.beanFilters[key]
+      if (query.beanFilters[key]) appliedCount++
+    }
+    beanCount.textContent = String(appliedCount)
+    beanCount.hidden = appliedCount === 0
+    beanReset.hidden = appliedCount === 0
     const results = applyQuery(entries, query)
     const visible = new Set(results.map((entry) => entry.key))
     for (const [key, card] of cards) card.hidden = !visible.has(key)
@@ -95,13 +116,18 @@ export function initHome(doc, deps = {}) {
     emptyEl.hidden = results.length > 0
   }
 
-  /** @param {Partial<Query>} patch */
+  /** @param {import('./query.js').QueryPatch} patch */
   function update(patch) {
     const scopeChanged = patch.scope !== undefined && patch.scope !== query.scope
     query = updateQuery(query, patch)
     if (scopeChanged) syncControls()
     render()
   }
+
+  for (const { key, select } of beanSelects) {
+    select.addEventListener('change', () => update({ beanFilters: { [key]: select.value } }))
+  }
+  beanReset.addEventListener('click', () => update({ beanFilters: { ...DEFAULT_QUERY.beanFilters } }))
 
   textInput.addEventListener('input', () => update({ text: textInput.value }))
   scopeSelect.addEventListener('change', () => update({ scope: /** @type {Query['scope']} */ (scopeSelect.value) }))

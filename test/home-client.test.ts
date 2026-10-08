@@ -129,3 +129,45 @@ describe('홈 화면 스크립트', () => {
     await vi.waitFor(() => expect($('#detail-body').textContent).toContain('상세 정보를 불러오지 못했습니다.'))
   })
 })
+
+
+describe('홈 원두 옵션 필터', () => {
+  it('선택 변경, 두 조건 AND, 적용 개수, 초기화', () => {
+    setControl('bf-country', '에티오피아')
+    expect(visibleKeys()).toEqual(['bean-1'])
+    expect($('#bean-filter-count').textContent).toBe('1')
+    expect($('#bean-filter-count').hidden).toBe(false)
+    setControl('bf-flavorTag', '자몽')
+    expect(visibleKeys()).toEqual([])
+    expect($('#bean-filter-count').textContent).toBe('2')
+    $('#bean-filter-reset').click()
+    expect(visibleKeys()).toEqual(['bean-2', 'bean-1'])
+    expect($('#bean-filter-count').hidden).toBe(true)
+    expect($<HTMLSelectElement>('[name="bf-country"]').value).toBe('')
+  })
+  it.each(['cafe', 'all'])('%s 전환하면 영역 숨김·값 초기화, 원두 복귀 시 표시', (scope) => {
+    setControl('bf-country', '케냐')
+    setControl('scope', scope)
+    expect($('#bean-filters').hidden).toBe(true)
+    for (const select of document.querySelectorAll<HTMLSelectElement>('#bean-filters select')) expect(select.value).toBe('')
+    setControl('scope', 'bean')
+    expect($('#bean-filters').hidden).toBe(false)
+    expect(visibleKeys()).toEqual(['bean-2', 'bean-1'])
+  })
+  it('JS 없이도 선택지 렌더링·빈 필드 숨김·HTML escaping', async () => {
+    document.body.innerHTML = await ejs.renderFile(path.join(VIEWS_DIR, 'home.ejs'), {
+      ...buildHomeModel([beanEntity({ country: '<산지>', process: null, roastLevel: null, variety: null, brewMethod: null, flavorTags: [] })], cafes), assetVersion: 't', isAdmin: false,
+    })
+    expect([...$<HTMLSelectElement>('[name="bf-country"]').options].map(o => o.value)).toEqual(['', '<산지>'])
+    expect($<HTMLSelectElement>('[name="bf-process"]').parentElement!.hidden).toBe(true)
+    expect($('#bean-filter-panel').classList.contains('collapse')).toBe(false)
+    expect($('#bean-filter-toggle').getAttribute('data-bs-target')).toBe('#bean-filter-panel')
+  })
+  it('초기 컨트롤 복원값으로 필터링', async () => {
+    document.body.innerHTML = await ejs.renderFile(path.join(VIEWS_DIR, 'home.ejs'), { ...buildHomeModel(beans, cafes), assetVersion: 't', isAdmin: false })
+    $<HTMLSelectElement>('[name="bf-flavorTag"]').value = '자스민'
+    initHome(document, { bootstrap: { Modal: { getOrCreateInstance: () => ({ show }) } }, fetch: fetchMock as unknown as typeof fetch })
+    expect(visibleKeys()).toEqual(['bean-1'])
+    expect($('#bean-filter-count').textContent).toBe('1')
+  })
+})

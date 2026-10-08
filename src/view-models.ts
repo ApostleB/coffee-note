@@ -31,6 +31,7 @@ export type HomeModel = {
   indexJson: string
   counts: Record<Kind, number>
   shops: string[]
+  beanOptions: Record<'country' | 'process' | 'roastLevel' | 'variety' | 'brewMethod' | 'flavorTag', string[]>
 }
 
 export type DetailModel = {
@@ -87,6 +88,14 @@ export function buildHomeModel(beans: Entity[], cafes: Entity[], today: string =
     ...cafes.map((entity): [ResourceDef, Entity] => [cafeVisitDef, entity]),
   ]
   return {
+    // public/js/query.js의 beanFilterOptions와 같은 원두 한정·고유값 정렬 규칙.
+    beanOptions: {
+      ...Object.fromEntries(['country', 'process', 'roastLevel', 'variety', 'brewMethod'].map((key) => [
+        key,
+        [...new Set(beans.map((bean) => bean[key]).filter((value): value is string => typeof value === 'string' && value !== ''))].sort(collator.compare),
+      ])) as Record<'country' | 'process' | 'roastLevel' | 'variety' | 'brewMethod', string[]>,
+      flavorTag: [...new Set(beans.flatMap(tagsOf))].sort(collator.compare),
+    },
     title: '',
     cards: pairs.map(([def, entity]) => toCardModel(def, entity, today)),
     indexJson: jsonForScript(pairs.map(([def, entity]) => toIndexEntry(def, entity))),

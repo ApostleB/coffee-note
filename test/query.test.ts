@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyQuery, DEFAULT_QUERY, normalize, shopOptions, updateQuery, type Query } from '../public/js/query.js'
+import { applyQuery, beanFilterOptions, BEAN_FILTER_KEYS, DEFAULT_QUERY, normalize, shopOptions, updateQuery, type Query } from '../public/js/query.js'
 import type { IndexEntry } from '../src/search-index.js'
 
 function entry(key: string, overrides: Partial<IndexEntry> = {}): IndexEntry {
@@ -13,6 +13,7 @@ function entry(key: string, overrides: Partial<IndexEntry> = {}): IndexEntry {
     score: null,
     price: null,
     country: null,
+    process: null, roastLevel: null, variety: null, brewMethod: null, flavorTags: [],
     roastedAt: null,
     isDecaf: false,
     searchText: key,
@@ -143,5 +144,41 @@ describe('shopOptions', () => {
     expect(shopOptions(entries, 'bean')).toEqual(['나무사이로', '커피리브레'])
     expect(shopOptions(entries, 'cafe')).toEqual(['프릳츠'])
     expect(shopOptions(entries, 'all')).toEqual(['나무사이로', '커피리브레', '프릳츠'])
+  })
+})
+
+
+describe('원두 다중 조건 필터', () => {
+  const fields = { country: '에티오피아', process: '내추럴', roastLevel: '라이트', variety: '헤어룸', brewMethod: '핸드드립', flavorTags: ['베리', '꽃'] }
+  const entries = [entry('match', fields), entry('other', { country: '케냐', process: '워시드' }), entry('cafe', { ...fields, kind: 'cafe' })]
+  it.each(['country', 'process', 'roastLevel', 'variety', 'brewMethod', 'flavorTag'] as const)('%s 단독 정확한 일치와 카페 제외', (key) => {
+    const value = key === 'flavorTag' ? '꽃' : fields[key]
+    expect(keys(applyQuery(entries, updateQuery(query({ scope: 'all' }), { beanFilters: { [key]: value } })))).toEqual(['match'])
+    expect(applyQuery(entries, updateQuery(query(), { beanFilters: { [key]: value + ' ' } }))).toEqual([])
+  })
+  it('두 조건 AND, 빈 값 무시, 기존 필터와 조합', () => {
+    const filtered = updateQuery(query(), { beanFilters: { country: '에티오피아', process: '워시드' } })
+    expect(applyQuery(entries, filtered)).toEqual([])
+    expect(keys(applyQuery(entries, updateQuery(filtered, { beanFilters: { process: '' } })))).toEqual(['match'])
+    expect(applyQuery(entries, updateQuery(filtered, { beanFilters: { process: '' }, decafOnly: true }))).toEqual([])
+    expect(keys(applyQuery(entries, query({ scope: 'all' })))).toEqual(['match', 'other', 'cafe'])
+  })
+  it('불변 기본값, 병합, 동일 scope 유지, 실제 scope 변경 시 전부 초기화', () => {
+    expect(Object.isFrozen(BEAN_FILTER_KEYS)).toBe(true)
+    expect(Object.isFrozen(DEFAULT_QUERY.beanFilters)).toBe(true)
+    const first = updateQuery(query(), { beanFilters: { country: '케냐' } })
+    const next = updateQuery(first, { beanFilters: { process: '워시드' } })
+    expect(next.beanFilters).toMatchObject({ country: '케냐', process: '워시드' })
+    expect(first.beanFilters.process).toBe('')
+    expect(DEFAULT_QUERY.beanFilters.country).toBe('')
+    expect(updateQuery(next, { scope: 'bean' }).beanFilters).toEqual(next.beanFilters)
+    expect(updateQuery(next, { scope: 'cafe', beanFilters: { variety: '게이샤' } }).beanFilters).toEqual(DEFAULT_QUERY.beanFilters)
+    expect(updateQuery(query({ scope: 'cafe' }), { scope: 'bean', beanFilters: { country: '케냐' } }).beanFilters).toEqual(DEFAULT_QUERY.beanFilters)
+  })
+  it('선택지는 원두만 고유값·한국어 정렬·null 제외·태그 펼침', () => {
+    const options = beanFilterOptions([...entries, entry('duplicate', fields), entry('nulls')])
+    const compare = new Intl.Collator('ko').compare
+    expect(options).toEqual({ country: ['에티오피아', '케냐'].sort(compare), process: ['내추럴', '워시드'].sort(compare), roastLevel: ['라이트'], variety: ['헤어룸'], brewMethod: ['핸드드립'], flavorTag: ['베리', '꽃'].sort(compare) })
+    expect(beanFilterOptions([entry('cafe-only', { kind: 'cafe', country: '파나마', flavorTags: ['카페태그'] })])).toEqual(Object.fromEntries(BEAN_FILTER_KEYS.map(key => [key, []])))
   })
 })
