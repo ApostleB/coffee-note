@@ -4,6 +4,7 @@ import request from 'supertest'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../src/app.js'
 import { checkPassword } from '../src/auth.js'
+import { createLoginGuard } from '../src/login-guard.js'
 import { TEST_PASSWORD, testConfig } from './helpers.js'
 
 // 이 테스트들은 DB를 쓰지 않는 경로만 호출한다
@@ -92,13 +93,53 @@ describe('관리자 로그인', () => {
     expect((await agent.get('/admin')).headers.location).toBe('/admin/login')
   })
 
-  it('1분에 10번을 넘게 시도하면 429', async () => {
-    for (let i = 0; i < 10; i += 1) {
-      await request(app).post('/admin/login').type('form').send({ password: 'wrong-password' }).expect(401)
-    }
-    const res = await request(app).post('/admin/login').type('form').send({ password: TEST_PASSWORD })
-    expect(res.status).toBe(429)
-    expect(res.text).toContain('로그인 시도가 너무 많습니다.')
+  describe('로그인 10회 실패 시 10분 차단', () => {
+    const clock = { t: Date.now() }
+    const wrong = (a: Express) => request(a).post('/admin/login').type('form').send({ password: 'wrong-password' })
+
+    beforeEach(() => {
+      clock.t = Date.now()
+      app = createApp({ config: testConfig(), pool: {} as Pool, loginGuard: createLoginGuard({ now: () => clock.t }) })
+    })
+
+    it('10번 틀리면 올바른 비밀번호와 로그인 화면 조회도 429 + Retry-After', async () => {
+      for (let i = 0; i < 10; i += 1) await wrong(app).expect(401)
+      const res = await request(app).post('/admin/login').type('form').send({ password: TEST_PASSWORD })
+      expect(res.status).toBe(429)
+      expect(res.headers['retry-after']).toBe('600')
+      expect(res.text).toContain('로그인 시도가 너무 많아 차단되었습니다. 10분 후 다시 시도하세요.')
+      expect(res.headers['set-cookie']).toBeUndefined()
+      const page = await request(app).get('/admin/login')
+      expect(page.status).toBe(429)
+      expect(page.headers['retry-after']).toBe('600')
+      expect((await request(app).get('/admin')).status).toBe(429)
+    })
+
+    it('차단 중에도 공개 페이지와 /healthz는 영향 없다', async () => {
+      for (let i = 0; i < 10; i += 1) await wrong(app).expect(401)
+      await request(app).get('/healthz').expect(200)
+    })
+
+    it('남은 시간은 분 단위로 올림해 안내한다', async () => {
+      for (let i = 0; i < 10; i += 1) await wrong(app).expect(401)
+      clock.t += 9 * 60_000 + 1000
+      const res = await request(app).get('/admin/login')
+      expect(res.status).toBe(429)
+      expect(res.headers['retry-after']).toBe('59')
+      expect(res.text).toContain('1분 후 다시 시도하세요.')
+    })
+
+    it('10분이 지나면 다시 로그인할 수 있다', async () => {
+      for (let i = 0; i < 10; i += 1) await wrong(app).expect(401)
+      clock.t += 10 * 60_000
+      await request(app).post('/admin/login').type('form').send({ password: TEST_PASSWORD }).expect(303)
+    })
+
+    it('9번 틀린 뒤 성공하면 횟수가 리셋된다', async () => {
+      for (let i = 0; i < 9; i += 1) await wrong(app).expect(401)
+      await request(app).post('/admin/login').type('form').send({ password: TEST_PASSWORD }).expect(303)
+      for (let i = 0; i < 9; i += 1) await wrong(app).expect(401)
+    })
   })
 
   it.each(['https://evil.example', 'null'])('다른 출처(%s)의 POST는 403', async (origin) => {

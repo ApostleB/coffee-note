@@ -1,6 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
 import type { Request, RequestHandler, Response } from 'express'
-import { rateLimit } from 'express-rate-limit'
 import type { Config } from './config.js'
 import { HttpError } from './errors.js'
 
@@ -60,19 +59,4 @@ export const sameOriginOnly: RequestHandler = (req, _res, next) => {
     }
   }
   next()
-}
-
-export function loginLimiter(): RequestHandler {
-  return rateLimit({
-    windowMs: 60_000,
-    limit: 10,
-    standardHeaders: 'draft-8',
-    legacyHeaders: false,
-    handler: (_req, res) => {
-      res.status(429).render('admin/login', {
-        title: '관리자 로그인',
-        error: '로그인 시도가 너무 많습니다. 1분 뒤에 다시 시도하세요.',
-      })
-    },
-  })
 }

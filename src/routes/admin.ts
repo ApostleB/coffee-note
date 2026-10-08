@@ -4,19 +4,19 @@ import {
   clearAdminCookie,
   isAdmin,
   issueAdminCookie,
-  loginLimiter,
   requireAdmin,
   sameOriginOnly,
 } from '../auth.js'
 import type { Config } from '../config.js'
 import { HttpError, parseId } from '../errors.js'
 import { formValues } from '../fields.js'
+import type { LoginGuard } from '../login-guard.js'
 import { receivePhotos, type PhotoOwner, type PhotoService } from '../photos.js'
 import { DEFS, prepare, type Entity, type ResourceDef } from '../resources.js'
 import { toIndexEntry } from '../search-index.js'
 import type { Repos } from '../repository.js'
 
-export type AdminDeps = { config: Config; repos: Repos; photos: PhotoService }
+export type AdminDeps = { config: Config; repos: Repos; photos: PhotoService; loginGuard: LoginGuard }
 
 type FormOptions = {
   entity: Entity | null
@@ -46,13 +46,29 @@ function renderForm(res: Response, def: ResourceDef, options: FormOptions): void
   })
 }
 
-export function adminRouter({ config, repos, photos }: AdminDeps): Router {
+export function adminRouter({ config, repos, photos, loginGuard }: AdminDeps): Router {
   const router = Router()
   router.use((_req, res, next) => {
     res.set('Cache-Control', 'no-store')
     next()
   })
   router.use(sameOriginOnly)
+  // 로그인 실패가 쌓여 차단된 IP는 /admin 아래 모든 요청을 거부한다 (비밀번호 확인도 하지 않는다)
+  router.use((req, res, next) => {
+    const state = loginGuard.check(req.ip ?? '')
+    if (!state.blocked) {
+      next()
+      return
+    }
+    const minutes = Math.ceil(state.retryAfterMs / 60_000)
+    res
+      .status(429)
+      .set('Retry-After', String(Math.ceil(state.retryAfterMs / 1000)))
+      .render('admin/login', {
+        title: '관리자 로그인',
+        error: `로그인 시도가 너무 많아 차단되었습니다. ${minutes}분 후 다시 시도하세요.`,
+      })
+  })
 
   router.get('/login', (req, res) => {
     if (isAdmin(req)) {
@@ -62,11 +78,14 @@ export function adminRouter({ config, repos, photos }: AdminDeps): Router {
     res.render('admin/login', { title: '관리자 로그인', error: null })
   })
 
-  router.post('/login', loginLimiter(), (req, res) => {
+  router.post('/login', (req, res) => {
+    const ip = req.ip ?? ''
     if (!checkPassword(req.body?.password, config.adminPassword)) {
+      loginGuard.recordFailure(ip)
       res.status(401).render('admin/login', { title: '관리자 로그인', error: '비밀번호가 올바르지 않습니다.' })
       return
     }
+    loginGuard.recordSuccess(ip)
     issueAdminCookie(res, config)
     res.redirect(303, '/admin')
   })

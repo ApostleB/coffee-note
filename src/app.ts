@@ -4,6 +4,7 @@ import type { Pool } from 'pg'
 import { isAdmin } from './auth.js'
 import type { Config } from './config.js'
 import { errorHandler, notFound } from './errors.js'
+import { createLoginGuard, type LoginGuard } from './login-guard.js'
 import { PUBLIC_DIR, VIEWS_DIR, vendorDir } from './paths.js'
 import { createPhotoService } from './photos.js'
 import { createRepos } from './repository.js'
@@ -11,9 +12,9 @@ import { adminRouter } from './routes/admin.js'
 import { publicRouter } from './routes/public.js'
 import { createStorage } from './storage.js'
 
-export type AppDeps = { config: Config; pool: Pool }
+export type AppDeps = { config: Config; pool: Pool; loginGuard?: LoginGuard }
 
-export function createApp({ config, pool }: AppDeps) {
+export function createApp({ config, pool, loginGuard = createLoginGuard() }: AppDeps) {
   const app = express()
   app.disable('x-powered-by')
   // 같은 서버의 리버스 프록시(nginx 등)만 신뢰한다 (로그인 시도 제한의 IP 판별용)
@@ -52,7 +53,7 @@ export function createApp({ config, pool }: AppDeps) {
     res.json({ ok: true })
   })
 
-  app.use('/admin', adminRouter({ config, repos, photos }))
+  app.use('/admin', adminRouter({ config, repos, photos, loginGuard }))
   app.use(publicRouter(repos))
 
   app.use(notFound)
