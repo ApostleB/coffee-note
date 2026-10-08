@@ -45,17 +45,19 @@ export const requireAdmin: RequestHandler = (req, res, next) => {
   res.redirect(303, '/admin/login')
 }
 
-/** 다른 사이트에서 보낸 POST를 막는다 (SameSite 쿠키에 더한 이중 방어) */
+/** 다른 사이트에서 보낸 POST를 막는다 (SameSite 쿠키에 더한 이중 방어). 프로토콜·호스트·포트 전체를 비교한다 */
 export const sameOriginOnly: RequestHandler = (req, _res, next) => {
   const origin = req.get('origin')
   if (req.method === 'POST' && origin !== undefined) {
-    let host: string | null
+    let originOfRequest: string | null
     try {
-      host = new URL(origin).host
+      originOfRequest = new URL(origin).origin
     } catch {
-      host = null
+      originOfRequest = null
     }
-    if (host === null || host !== req.get('host')) throw new HttpError(403, '허용되지 않은 요청입니다')
+    if (originOfRequest === null || originOfRequest !== `${req.protocol}://${req.get('host')}`) {
+      throw new HttpError(403, '허용되지 않은 요청입니다')
+    }
   }
   next()
 }

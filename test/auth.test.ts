@@ -106,4 +106,24 @@ describe('관리자 로그인', () => {
     expect(res.status).toBe(403)
     expect(res.text).toContain('허용되지 않은 요청입니다')
   })
+
+  it('같은 호스트라도 프로토콜이 다른 Origin은 403', async () => {
+    const res = await request(app)
+      .post('/admin/login')
+      .set('Host', 'coffee.example')
+      .set('Origin', 'https://coffee.example')
+      .type('form')
+      .send({ password: TEST_PASSWORD })
+    expect(res.status).toBe(403)
+  })
+
+  it('같은 출처의 POST는 통과한다', async () => {
+    const res = await request(app)
+      .post('/admin/login')
+      .set('Host', 'coffee.example')
+      .set('Origin', 'http://coffee.example')
+      .type('form')
+      .send({ password: TEST_PASSWORD })
+    expect(res.status).toBe(303)
+  })
 })

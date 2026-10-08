@@ -6,11 +6,15 @@ pg.types.setTypeParser(1082, (value: string) => value)
 export type PoolOptions = { searchPath?: string }
 
 export function createPool(connectionString: string, { searchPath }: PoolOptions = {}): pg.Pool {
-  return new pg.Pool({
+  const pool = new pg.Pool({
     connectionString,
     max: 5,
+    connectionTimeoutMillis: 5000,
     options: searchPath ? `-c search_path=${searchPath}` : undefined,
   })
+  // 유휴 연결이 끊겨도 처리되지 않은 'error' 이벤트로 프로세스가 죽지 않게 한다
+  pool.on('error', (err) => console.error('유휴 DB 연결 오류', err))
+  return pool
 }
 
 export async function withTransaction<T>(pool: pg.Pool, fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {

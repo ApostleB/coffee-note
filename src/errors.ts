@@ -12,7 +12,8 @@ export class HttpError extends Error {
 /** URL의 id 파라미터. 양의 정수가 아니면 404 */
 export function parseId(value: string): number {
   const id = Number(value)
-  if (!Number.isInteger(id) || id <= 0) throw new HttpError(404, '기록을 찾을 수 없습니다')
+  // PostgreSQL integer 범위(2^31-1) 안의 양의 정수 표기만 허용한다
+  if (!/^[1-9]\d{0,9}$/.test(value) || id > 2147483647) throw new HttpError(404, '기록을 찾을 수 없습니다')
   return id
 }
 
