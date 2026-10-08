@@ -1,6 +1,6 @@
 # Coffee Note 설계
 
-작성일: 2026-10-08
+작성일: 2026-10-08 (개정: 프론트를 React → EJS + Bootstrap 5로 변경)
 
 ## 목적
 
@@ -11,30 +11,36 @@
 
 ## 아키텍처
 
-pnpm 모노레포.
+단일 Node.js 패키지. Express 5 + TypeScript가 EJS 템플릿으로 HTML을 렌더링한다. 별도 프론트 빌드 없음.
 
 ```
 coffee-note/
-  apps/
-    server/   Express + TypeScript + pg (PostgreSQL)
-    web/      React 19 + Vite + TypeScript
-  package.json, pnpm-workspace.yaml
+  src/          서버 (Express, TypeScript)
+  views/        EJS 템플릿 (공개 화면, 관리자 화면, 파셜)
+  public/       정적 파일 (css, 브라우저용 ES 모듈 JS)
+  migrations/   SQL 마이그레이션
+  test/         Vitest 테스트
 ```
 
-- 개발: Vite dev server(web)가 `/api`, `/uploads` 요청을 Express(server)로 프록시.
-- 운영: `web` 빌드 결과물을 Express가 정적 서빙 → 단일 서버 프로세스로 배포.
-- 환경변수는 `apps/server/.env` (git 제외, `.env.example` 제공).
+- UI: Bootstrap 5.3 + Bootstrap Icons + Pretendard 폰트. npm으로 설치해 `/vendor/*`로 서빙(CDN 의존 없음). 커피 톤 색상은 Bootstrap CSS 변수를 덮어써서 적용, 라이트/다크 모드는 시스템 설정을 따름.
+- 브라우저 JS: 빌드 없는 ES 모듈(`public/js/*.js`, `// @ts-check` + JSDoc). 검색·필터·정렬 로직은 순수 함수 모듈로 분리해 테스트.
+- 정적 자원 캐시 무효화: 서버 시작 시각을 `?v=` 쿼리로 붙임.
+
+### 환경변수 (`.env`, git 제외, `.env.example` 제공)
 
 | 변수 | 설명 |
 |---|---|
 | `DATABASE_URL` | PostgreSQL 접속 문자열 (DB `coffee_note`) |
-| `TEST_DATABASE_URL` | API 통합 테스트용 DB. 없으면 통합 테스트 skip |
-| `ADMIN_PASSWORD` | 관리자 로그인 비밀번호 |
-| `SESSION_SECRET` | 관리자 쿠키 서명 키 |
+| `TEST_DATABASE_URL` | 통합 테스트용 DB. 같은 DB여도 됨(테스트는 `coffee_note_test` 스키마만 사용). 없으면 DB 테스트 skip |
+| `ADMIN_PASSWORD` | 관리자 로그인 비밀번호 (8자 이상) |
+| `SESSION_SECRET` | 관리자 쿠키 서명 키 (32자 이상) |
 | `UPLOAD_DIR` | 사진 저장 경로 (기본 `./uploads`) |
 | `PORT` | 서버 포트 (기본 4000) |
+| `COOKIE_SECURE` | HTTPS 서비스 시 `true` (기본 `false`) |
 
 ## 데이터 모델
+
+필드 정의(`src/fields.ts`)가 단일 기준이다. 폼 렌더링, 입력 검증(zod), DB 컬럼(camelCase → snake_case), 상세 화면 표시가 모두 이 정의에서 파생된다.
 
 ### `beans` — 원두 커핑노트
 
@@ -43,24 +49,20 @@ coffee-note/
 | id | serial PK | |
 | name | text NOT NULL | 원두명 (카드 제목) |
 | shop | text NOT NULL | 판매처/로스터리 (카드 부제목) |
-| country | text | 산지 국가 |
-| region | text | 산지 지역/농장 |
-| variety | text | 품종 |
-| process | text | 가공 방식 |
-| roast_level | text | 로스팅 포인트 (라이트/미디엄/다크 등 자유 입력) |
-| is_decaf | boolean NOT NULL default false | 디카페인 |
-| flavor_tags | text[] NOT NULL default '{}' | 향미 노트 태그 |
-| acidity, sweetness, body, aftertaste | smallint | 각 1~10, nullable |
-| total_score | smallint | 4개 점수 합 (서버에서 계산, 하나라도 없으면 null) |
 | summary | text | 간략 메모 (카드 노출) |
-| memo | text | 상세 메모 |
-| url | text | 상품 URL |
+| url | text | 상품 URL (http/https만) |
+| country, region, variety, process, roast_level | text | 산지 국가·지역, 품종, 가공, 로스팅 포인트 |
+| is_decaf | boolean NOT NULL default false | 디카페인 |
 | purchased_at | date | 구매일 |
 | price | integer | 가격(원) |
 | weight_g | integer | 용량(g) |
 | brew_method | text | 추출방식 |
 | roasted_at | date | 로스팅일 |
 | best_from | date | 최적 시음 시작일 |
+| acidity, sweetness, body, aftertaste | smallint | 각 1~10 |
+| total_score | smallint | 네 점수 합. 서버 계산, 하나라도 없으면 null |
+| flavor_tags | text[] NOT NULL default '{}' | 향미 노트 태그 |
+| memo | text | 상세 메모 |
 | created_at, updated_at | timestamptz | |
 
 ### `cafe_visits` — 카페 후기
@@ -70,16 +72,16 @@ coffee-note/
 | id | serial PK | |
 | menu | text NOT NULL | 마신 원두/메뉴명 (카드 제목) |
 | cafe_name | text NOT NULL | 카페명 (카드 부제목) |
-| address | text | 주소 |
-| map_url | text | 지도 URL |
-| mood_memo | text | 분위기 메모 |
 | visited_at | date | 방문일 |
+| rating | smallint | 별점 1~5 |
 | price | integer | 가격(원) |
 | brew_method | text | 추출방식 |
 | country, variety, process | text | 원두 정보 |
 | is_decaf | boolean NOT NULL default false | |
 | flavor_tags | text[] NOT NULL default '{}' | |
-| rating | smallint | 1~5 |
+| address | text | 주소 |
+| map_url | text | 지도 URL (http/https만) |
+| mood_memo | text | 분위기 메모 |
 | memo | text | 후기 |
 | created_at, updated_at | timestamptz | |
 
@@ -88,116 +90,109 @@ coffee-note/
 | 컬럼 | 타입 | 비고 |
 |---|---|---|
 | id | serial PK | |
-| bean_id | int FK → beans ON DELETE CASCADE, nullable | |
-| cafe_visit_id | int FK → cafe_visits ON DELETE CASCADE, nullable | |
-| file_name | text NOT NULL | 원본 리사이즈본 파일명 |
-| thumb_name | text NOT NULL | 썸네일 파일명 |
-| sort_order | int NOT NULL default 0 | |
-| is_thumbnail | boolean NOT NULL default false | |
+| bean_id | int FK → beans ON DELETE CASCADE | nullable |
+| cafe_visit_id | int FK → cafe_visits ON DELETE CASCADE | nullable |
+| file_name, thumb_name | text NOT NULL | 본 이미지 / 썸네일 파일명 |
+| sort_order | int NOT NULL default 0 | 업로드 순서 |
+| is_thumbnail | boolean NOT NULL default false | 대표 썸네일 |
 | created_at | timestamptz | |
 
 - CHECK: `bean_id`와 `cafe_visit_id` 중 정확히 하나만 not null.
 - 부분 유니크 인덱스: 글 하나당 `is_thumbnail = true`는 최대 1장.
 - 썸네일 지정이 없으면 `sort_order`가 가장 앞선 사진을 카드 썸네일로 사용.
-- 글 삭제 시 DB는 cascade, 디스크 파일은 서버가 함께 삭제.
+- 글·사진 삭제 시 디스크 파일도 함께 삭제.
 
 ### 마이그레이션
 
-`apps/server/migrations/NNN_name.sql` 파일을 번호 순으로 실행하고 `schema_migrations` 테이블에 적용 이력을 기록하는 스크립트(`pnpm migrate`).
+`migrations/NNN_name.sql`을 번호 순으로 트랜잭션 안에서 실행하고 `schema_migrations`에 이력 기록 (`pnpm migrate`).
 
-## 서버 API
+## 화면과 라우트
 
-공통: JSON, 오류 응답은 `{ "error": string }` + 적절한 상태 코드(400 검증 실패, 401 미인증, 404 없음, 500 서버 오류). 입력은 zod로 검증.
+JSON API는 두지 않는다. 공개 화면은 서버 렌더링 + 브라우저 필터링, 관리자 화면은 일반 HTML 폼 POST(Post/Redirect/Get).
 
-### 공개 (읽기)
+### 공개
 
-- `GET /api/beans` — 전체 원두 노트 목록. 각 항목에 `photos: [{id, url, thumbUrl, isThumbnail}]`와 `thumbnailUrl` 포함.
-- `GET /api/beans/:id`
-- `GET /api/cafe-visits`, `GET /api/cafe-visits/:id` — 동일 구조.
+| 라우트 | 내용 |
+|---|---|
+| `GET /` | 홈: 탭 + 툴바 + 카드 그리드 |
+| `GET /beans/:id`, `GET /cafe-visits/:id` | 상세 페이지. `?fragment=1`이면 모달에 넣을 본문 조각만 |
+| `GET /healthz` | `{ ok: true }` |
+| `/uploads/*` | 사진 (UUID 파일명, 1년 immutable 캐시) |
 
-개인 기록 규모(수백~수천 건)이므로 페이지네이션 없이 전체를 내려주고 검색·정렬은 프론트에서 처리.
+**홈 화면**
 
-### 관리자
-
-- `POST /api/auth/login` `{ password }` → 일치 시 서명된 httpOnly, SameSite=Lax 쿠키 발급(유효 30일). 불일치 401.
-- `POST /api/auth/logout`, `GET /api/auth/me` (`{ admin: boolean }`).
-- 아래는 모두 관리자 쿠키 필요 (없으면 401):
-  - `POST /api/beans`, `PUT /api/beans/:id`, `DELETE /api/beans/:id`
-  - `POST /api/cafe-visits`, `PUT /api/cafe-visits/:id`, `DELETE /api/cafe-visits/:id`
-  - `POST /api/beans/:id/photos`, `POST /api/cafe-visits/:id/photos` — multipart, 여러 장. jpg/png/webp/heic, 장당 최대 15MB.
-  - `DELETE /api/photos/:id`
-  - `PUT /api/photos/:id/thumbnail` — 해당 사진을 썸네일로 지정(같은 글의 기존 썸네일 해제).
-- 로그인 시도는 IP당 분당 10회로 제한.
-
-### 사진 처리
-
-multer(메모리)로 수신 → sharp로 회전 보정 후 WebP 변환:
-- 본 이미지: 긴 변 1600px
-- 썸네일: 긴 변 480px
-
-`UPLOAD_DIR`에 UUID 파일명으로 저장, `/uploads/<파일명>`으로 정적 서빙.
-
-## 프론트엔드
-
-### 라우트
-
-- `/` — 공개 메인 (탭: 원두 노트 | 카페 후기)
-- `/admin` — 관리자 로그인 및 관리
-
-### 공개 메인
-
-**툴바**
-- 검색창: 입력 즉시 필터링
-- 검색 범위 셀렉트: 전체 / 원두 / 카페. "전체"면 두 목록을 합친 결과를 보여주고(카드에 원두/카페 배지), 원두·카페 선택 시 해당 탭으로 전환
-- 정렬 셀렉트:
-  - 최신순 / 오래된순 — 원두: `purchased_at`, 카페: `visited_at` (없으면 `created_at`)
-  - 점수 높은순 — 원두: `total_score`, 카페: `rating`
-  - 이름순(가나다) — 원두 `name` / 카페 `menu`, `localeCompare('ko')`
-  - 가격 낮은순 / 높은순
-  - 최신 로스팅순 — `roasted_at` (원두에만 노출)
-  - 원두 국가순 — `country` 가나다
-  - 값이 없는 항목은 항상 뒤로
-- 로스터리/가게 셀렉트: 현재 목록의 `shop`(원두) / `cafe_name`(카페) 고유값으로 자동 생성, "전체" 기본
-- 디카페인 토글: 켜면 `is_decaf = true`만
-
-**검색 구현**
-- 최초 진입 시 두 목록을 한 번 fetch해 메모리에 보관.
-- 각 항목에 대해 이름·가게·국가·지역·품종·가공·태그·간략 메모·메모(카페는 주소·분위기 메모 포함)를 이어 붙여 소문자·공백 정규화한 `searchText`를 미리 계산(목록 로드 시 1회).
-- 검색어를 공백으로 나눈 모든 토큰이 `searchText`에 포함되면 매칭(AND).
-- 필터→검색→정렬은 순수 함수 `applyQuery(items, query)`로 분리, `useMemo` + `useDeferredValue`로 입력 지연 없이 갱신.
-
-**카드 레이아웃**
-- 컨테이너: `display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap`.
-  화면 폭에 따라 한 줄 카드 수가 자동으로 바뀜(모바일 1, 태블릿 2~3, PC 4~5).
-- 카드 높이 통일: 썸네일 4:3 고정(`aspect-ratio`, `object-fit: cover`, 사진 없으면 원두/컵 아이콘 플레이스홀더), 간략 메모 2줄 clamp, 태그 최대 1줄.
-- 원두 카드: 썸네일, 제목(원두명), 부제목(판매처), 국가·가공, 향미 태그, 총점, 디카페인 배지, "시음 적기" 배지(`best_from` ≤ 오늘).
-- 카페 카드: 썸네일, 제목(메뉴명), 부제목(카페명), 별점, 향미 태그, 방문일, 디카페인 배지.
-- 카드 클릭 → 상세 모달(모바일은 전체 화면 시트): 모든 필드, 사진 갤러리(좌우 스와이프/화살표), 외부 링크(상품 URL, 지도 URL).
-- 결과 없음 상태 메시지, 로딩 스켈레톤 카드, fetch 실패 시 재시도 버튼.
+- 탭: 원두 노트 | 카페 후기 (개수 배지).
+- 툴바(스크롤 시 상단 고정):
+  - 검색창: 입력 즉시 필터링
+  - 검색 범위 셀렉트: 전체 / 원두 / 카페. 탭과 같은 상태를 공유한다. "전체"면 두 종류를 섞어 보여주고 카드에 원두/카페 배지 표시. 범위가 바뀌면 가게 필터는 초기화.
+  - 정렬 셀렉트:
+    - 최신순 / 오래된순 — 원두 `purchased_at`, 카페 `visited_at` (없으면 `created_at`)
+    - 점수 높은순 — 원두 `total_score / 40`, 카페 `rating / 5` (섞어 볼 때도 비교 가능하도록 비율)
+    - 이름순(가나다), 가격 낮은순 / 높은순, 원두 국가순
+    - 최신 로스팅순 — 범위가 "원두"일 때만 선택 가능. 다른 범위로 바뀌면 최신순으로 되돌림
+    - 값이 없는 항목은 항상 뒤로
+  - 가게 셀렉트: 현재 범위의 로스터리/카페명 고유값(가나다순)
+  - 디카페인 스위치: 켜면 디카페인만
+- 검색 방식:
+  - 서버가 모든 카드를 HTML로 렌더링하고, 카드별 검색 인덱스(제목·가게·날짜·점수·가격·국가·로스팅일·디카페인·`searchText`)를 `<script type="application/json">`으로 함께 내려준다.
+  - `searchText`는 서버에서 텍스트·태그 필드를 이어 붙여 정규화(NFC, 소문자, 공백 정리)한 문자열. 디카페인이면 "디카페인 decaf"를 포함.
+  - 브라우저는 검색어를 공백으로 나눈 모든 토큰이 `searchText`에 포함되는지(AND) 검사하고, 결과에 맞춰 기존 카드 요소를 숨김/표시하고 순서를 재배치한다. 서버 요청 없음.
+- 카드 레이아웃: Bootstrap 그리드 `row-cols-1 / sm-2 / lg-3 / xl-4 / xxl-5`로 화면 폭에 따라 한 줄 카드 수가 바뀜. 썸네일 4:3 고정(`ratio-4x3`, `object-fit-cover`, 사진 없으면 아이콘), 제목·간략 메모 2줄 제한, 태그 1줄 제한으로 카드 높이를 맞춤.
+  - 원두 카드: 썸네일, 원두명, 판매처, 국가·가공·로스팅 포인트, 간략 메모, 향미 태그(최대 4개), 총점, 디카페인 배지, "시음 적기" 배지(최적 시음 시작일 ≤ 오늘)
+  - 카페 카드: 썸네일, 메뉴명, 카페명, 방문일·추출방식, 향미 태그, 별점, 디카페인 배지
+- 카드 클릭 → Bootstrap 모달(모바일은 전체 화면)에 상세 조각을 불러와 표시. 새 탭으로 열면 상세 페이지가 그대로 동작.
+- 상세: 사진 캐러셀(스와이프 지원), 필드 목록, 메모, 외부 링크(상품 페이지, 지도), 관리자 로그인 상태면 "수정" 버튼.
+- 결과 없음 안내, 결과 개수 표시.
 
 ### 관리자 (`/admin`)
 
-- 미로그인: 비밀번호 입력 폼.
-- 로그인 후: 원두/카페 탭별 목록(공개 화면과 같은 카드 그리드 + 검색) + "새로 작성" 버튼.
-- 작성/수정 폼: 모든 필드 입력, 향미 태그는 입력 후 Enter로 칩 추가, 점수 입력 시 총점 미리보기.
-- 사진: 여러 장 선택 업로드(업로드 진행 표시), 미리보기 그리드에서 탭하여 썸네일 지정, 개별 삭제.
-  신규 글은 저장 후 사진 업로드 단계가 활성화됨.
-- 삭제는 확인 대화상자 후 실행.
-- API가 401을 반환하면 로그인 화면으로 이동.
+| 라우트 | 내용 |
+|---|---|
+| `GET/POST /admin/login` | 비밀번호 로그인 (IP당 분당 10회 제한) |
+| `POST /admin/logout` | 로그아웃 |
+| `GET /admin/beans`, `/admin/cafe-visits` | 목록 (썸네일·제목·가게·날짜, 즉시 검색) + 새로 작성 |
+| `GET /admin/:종류/new`, `POST /admin/:종류` | 작성 |
+| `GET /admin/:종류/:id/edit`, `POST /admin/:종류/:id` | 수정 |
+| `POST /admin/:종류/:id/delete` | 삭제 (확인 창) |
+| `POST /admin/:종류/:id/photos` | 사진 업로드 (multipart, 여러 장) |
+| `POST /admin/photos/:id/thumbnail` | 썸네일 지정 |
+| `POST /admin/photos/:id/delete` | 사진 삭제 |
 
-### 스타일
+- 미로그인 상태로 관리자 경로 접근 시 로그인 화면으로 리다이렉트.
+- 작성/수정 폼: 필드 정의의 섹션별 카드로 구성. 향미 태그는 쉼표 구분 입력. 커핑 점수 4개를 고르면 총점 미리보기. 검증 실패 시 입력값을 유지한 채 필드별 오류 표시(400). 저장 성공 시 수정 화면으로 리다이렉트하고 "저장했습니다" 표시.
+- 사진: 새 글은 저장 후 업로드 가능. 업로드한 사진 목록에서 썸네일 지정·삭제.
+- 관리자 페이지는 `Cache-Control: no-store`.
 
-- 순수 CSS(CSS 변수 기반 토큰, 라이트/다크 대응), 모바일 우선 반응형.
-- 툴바는 모바일에서 검색창 한 줄 + 셀렉트들이 가로 스크롤 한 줄로 배치.
+### 인증·보안
+
+- 로그인 성공 시 만료 시각을 값으로 하는 서명 쿠키(httpOnly, SameSite=Lax, 30일) 발급. 비밀번호 비교는 SHA-256 다이제스트의 timing-safe 비교.
+- 관리자 POST는 `Origin` 헤더가 있으면 호스트 일치를 확인(SameSite에 더한 CSRF 방어).
+- EJS 출력은 기본 이스케이프. JSON을 `<script>`에 넣을 때 `<`를 `<`로 이스케이프.
+- URL 필드는 http/https만 허용.
+
+### 사진 처리
+
+multer(메모리, 장당 15MB, 한 번에 20장, JPG·PNG·WebP·AVIF)로 수신 → sharp로 EXIF 회전 보정 후 WebP 변환:
+- 본 이미지: 긴 변 1600px
+- 썸네일: 긴 변 480px
+
+`UPLOAD_DIR`에 UUID 파일명으로 저장. HEIC는 sharp 기본 빌드가 지원하지 않아 제외한다(아이폰 사파리는 업로드 시 JPEG로 변환해 보낸다).
+
+### 오류 처리
+
+- 존재하지 않는 페이지·기록, 잘못된 id → 404 오류 페이지
+- 그 밖의 4xx → 해당 상태의 오류 페이지, 5xx → 로그 기록 후 "서버 오류" 페이지
 
 ## 테스트
 
-- `apps/web`: Vitest로 `applyQuery`(검색 토큰 매칭, 각 정렬, 가게·디카페인 필터, null 값 뒤로) 단위 테스트.
-- `apps/server`: Vitest로 zod 스키마·총점 계산 단위 테스트. supertest로 API 통합 테스트(인증 401, CRUD, 썸네일 지정 유일성)는 `TEST_DATABASE_URL` 설정 시에만 실행해 운영 DB를 건드리지 않음.
+Vitest + supertest.
+- 단위: 필드 검증·변환, 총점 계산, 검색 인덱스, 카드·상세 뷰 모델, 브라우저 검색 로직(`public/js/query.js`), 설정 로딩, 이미지 변환.
+- 브라우저 동작(jsdom): 실제 EJS 템플릿을 렌더링한 DOM에 홈 스크립트·관리자 스크립트를 붙여 검색·탭·정렬·모달 동작 확인.
+- 통합(DB): 마이그레이션, 저장소, 공개 페이지, 관리자 인증·CRUD·사진. `TEST_DATABASE_URL`이 있을 때만 실행하고 `coffee_note_test` 스키마만 사용해 운영 데이터를 건드리지 않는다.
 
 ## 범위 밖 (YAGNI)
 
 - 다중 사용자/회원가입
-- 서버 측 검색·페이지네이션
+- JSON API, 서버 측 검색·페이지네이션
 - 외부 스토리지(S3 등)
 - 배포 자동화(배포 대상 확정 후 별도 진행)
