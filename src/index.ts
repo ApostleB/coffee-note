@@ -12,6 +12,14 @@ try {
 const config = loadConfig()
 const pool = createPool(config.databaseUrl)
 
-createApp({ config, pool }).listen(config.port, () => {
+createApp({ config, pool }).listen(config.port, (err) => {
+  if (err) {
+    console.error(`서버 시작 실패: ${err.message}`)
+    // 풀을 닫아야 프로세스가 종료 코드와 함께 끝난다
+    pool.end().finally(() => {
+      process.exitCode = 1
+    })
+    return
+  }
   console.log(`Coffee Note: http://localhost:${config.port}`)
 })
