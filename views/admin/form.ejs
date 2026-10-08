@@ -1,0 +1,48 @@
+<%- include('../partials/head') %>
+<%- include('../partials/admin-header') %>
+<main class="container py-3 coffee-form-page">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb small mb-2">
+      <li class="breadcrumb-item"><a href="<%= listHref %>"><%= def.label %></a></li>
+      <li class="breadcrumb-item active" aria-current="page"><%= entity ? '수정' : '새로 작성' %></li>
+    </ol>
+  </nav>
+  <h1 class="h4 mb-3"><%= title %></h1>
+  <% if (saved) { %>
+    <div class="alert alert-success py-2" role="status"><i class="bi bi-check-circle"></i> 저장했습니다.</div>
+  <% } %>
+  <% if (Object.keys(errors).length) { %>
+    <div class="alert alert-danger py-2" role="alert">입력값을 확인해 주세요.</div>
+  <% } %>
+
+  <form method="post" action="<%= action %>" class="vstack gap-3" id="entry-form">
+    <% def.sections.forEach((section) => { %>
+      <fieldset class="card">
+        <div class="card-body">
+          <legend class="h6 mb-3"><%= section.title %></legend>
+          <div class="row g-3">
+            <% section.fields.forEach((field) => { %>
+              <%- include('../partials/field', { field, value: values[field.name], error: errors[field.name] }) %>
+            <% }) %>
+          </div>
+          <% if (section.showTotal) { %>
+            <p class="mt-3 mb-0 fw-semibold text-primary">총점 <span data-total-score>-</span> / 40</p>
+          <% } %>
+        </div>
+      </fieldset>
+    <% }) %>
+    <div class="coffee-form-actions sticky-bottom bg-body border-top py-2">
+      <a class="btn btn-outline-secondary" href="<%= listHref %>">목록</a>
+      <button class="btn btn-primary px-4" type="submit">저장</button>
+    </div>
+  </form>
+
+  <% if (entity) { %>
+    <form method="post" action="<%= action %>/delete" class="mt-4 text-end" data-confirm="이 기록을 삭제할까요? 사진도 함께 삭제됩니다.">
+      <button class="btn btn-outline-danger" type="submit"><i class="bi bi-trash"></i> 기록 삭제</button>
+    </form>
+  <% } else { %>
+    <p class="form-text mt-3">저장한 뒤에 사진을 추가할 수 있습니다.</p>
+  <% } %>
+</main>
+<%- include('../partials/foot', { scripts: ['/js/admin-main.js'] }) %>

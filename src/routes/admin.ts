@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, type Response } from 'express'
 import {
   checkPassword,
   clearAdminCookie,
@@ -9,11 +9,43 @@ import {
   sameOriginOnly,
 } from '../auth.js'
 import type { Config } from '../config.js'
+import { HttpError, parseId } from '../errors.js'
+import { formValues } from '../fields.js'
+import { DEFS, prepare, type Entity, type ResourceDef } from '../resources.js'
+import { toIndexEntry } from '../search-index.js'
 import type { Repos } from '../repository.js'
 
 export type AdminDeps = { config: Config; repos: Repos }
 
-export function adminRouter({ config }: AdminDeps): Router {
+type FormOptions = {
+  entity: Entity | null
+  values?: Record<string, string | boolean>
+  errors?: Record<string, string>
+  status?: number
+  saved?: boolean
+  photoError?: string | null
+}
+
+const recordNotFound = () => new HttpError(404, '기록을 찾을 수 없습니다')
+
+function renderForm(res: Response, def: ResourceDef, options: FormOptions): void {
+  const { entity } = options
+  const base = `/admin/${def.path}`
+  res.status(options.status ?? 200).render('admin/form', {
+    title: entity ? `${def.label} 수정` : `새 ${def.label}`,
+    active: def.path,
+    def,
+    entity,
+    values: options.values ?? formValues(def.sections, entity),
+    errors: options.errors ?? {},
+    action: entity ? `${base}/${entity.id}` : base,
+    listHref: base,
+    saved: options.saved ?? false,
+    photoError: options.photoError ?? null,
+  })
+}
+
+export function adminRouter({ config, repos }: AdminDeps): Router {
   const router = Router()
   router.use((_req, res, next) => {
     res.set('Cache-Control', 'no-store')
@@ -49,6 +81,59 @@ export function adminRouter({ config }: AdminDeps): Router {
   router.get('/', (_req, res) => {
     res.redirect(303, '/admin/beans')
   })
+
+  for (const def of Object.values(DEFS)) {
+    const repo = repos[def.kind]
+    const base = `/admin/${def.path}`
+
+    router.get(`/${def.path}`, async (_req, res) => {
+      const items = (await repo.list()).map((entity) => ({
+        ...toIndexEntry(def, entity),
+        thumbnailUrl: entity.thumbnailUrl,
+        editHref: `${base}/${entity.id}/edit`,
+      }))
+      res.render('admin/list', { title: def.label, active: def.path, def, items, newHref: `${base}/new` })
+    })
+
+    router.get(`/${def.path}/new`, (_req, res) => {
+      renderForm(res, def, { entity: null })
+    })
+
+    router.post(`/${def.path}`, async (req, res) => {
+      const result = prepare(def, req.body)
+      if (!result.ok) {
+        renderForm(res, def, { entity: null, values: formValues(def.sections, req.body), errors: result.errors, status: 400 })
+        return
+      }
+      const created = await repo.create(result.data)
+      res.redirect(303, `${base}/${created.id}/edit?saved=1`)
+    })
+
+    router.get(`/${def.path}/:id/edit`, async (req, res) => {
+      const entity = await repo.get(parseId(req.params.id))
+      if (!entity) throw recordNotFound()
+      renderForm(res, def, { entity, saved: req.query.saved === '1' })
+    })
+
+    router.post(`/${def.path}/:id`, async (req, res) => {
+      const id = parseId(req.params.id)
+      const entity = await repo.get(id)
+      if (!entity) throw recordNotFound()
+      const result = prepare(def, req.body)
+      if (!result.ok) {
+        renderForm(res, def, { entity, values: formValues(def.sections, req.body), errors: result.errors, status: 400 })
+        return
+      }
+      await repo.update(id, result.data)
+      res.redirect(303, `${base}/${id}/edit?saved=1`)
+    })
+
+    router.post(`/${def.path}/:id/delete`, async (req, res) => {
+      const removed = await repo.remove(parseId(req.params.id))
+      if (!removed) throw recordNotFound()
+      res.redirect(303, base)
+    })
+  }
 
   return router
 }

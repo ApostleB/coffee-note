@@ -200,3 +200,31 @@
 
 /* ===== 관리자 ===== */
 .coffee-login { max-width: 380px; }
+
+.coffee-grow { flex: 1 1 auto; }
+
+.coffee-list-item {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.coffee-thumb {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.coffee-form-page { max-width: 880px; }
+
+.coffee-form-actions {
+  z-index: 5;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.coffee-list-item[hidden] { display: none; }

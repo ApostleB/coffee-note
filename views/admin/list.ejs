@@ -1,0 +1,30 @@
+<%- include('../partials/head') %>
+<%- include('../partials/admin-header') %>
+<main class="container py-3">
+  <div class="coffee-actions mb-3">
+    <input type="search" class="form-control coffee-grow" id="admin-search" placeholder="<%= def.label %> 검색" aria-label="검색어" autocomplete="off">
+    <a class="btn btn-primary text-nowrap" href="<%= newHref %>"><i class="bi bi-plus-lg"></i> 새로 작성</a>
+  </div>
+  <% if (items.length === 0) { %>
+    <p class="text-center text-body-secondary py-5">아직 기록이 없습니다.</p>
+  <% } else { %>
+    <div class="list-group" id="admin-list">
+      <% items.forEach((item) => { %>
+        <a class="list-group-item list-group-item-action coffee-list-item" href="<%= item.editHref %>" data-search="<%= item.searchText %>">
+          <% if (item.thumbnailUrl) { %>
+            <img src="<%= item.thumbnailUrl %>" alt="" class="coffee-thumb rounded object-fit-cover">
+          <% } else { %>
+            <span class="coffee-thumb rounded bg-body-tertiary text-body-tertiary"><i class="bi <%= def.kind === 'bean' ? 'bi-basket' : 'bi-cup-hot' %>"></i></span>
+          <% } %>
+          <span class="coffee-grow min-w-0">
+            <span class="d-block fw-semibold text-truncate"><%= item.title %></span>
+            <span class="d-block small text-body-secondary text-truncate"><%= item.subtitle %> · <%= item.date.replaceAll('-', '.') %></span>
+          </span>
+          <i class="bi bi-chevron-right text-body-tertiary"></i>
+        </a>
+      <% }) %>
+    </div>
+    <p class="text-center text-body-secondary py-4" id="admin-empty" hidden>검색 결과가 없습니다.</p>
+  <% } %>
+</main>
+<%- include('../partials/foot', { scripts: ['/js/admin-main.js'] }) %>

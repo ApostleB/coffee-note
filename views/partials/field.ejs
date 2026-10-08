@@ -1,0 +1,32 @@
+<%
+  const id = `f-${field.name}`
+  const invalid = error ? ' is-invalid' : ''
+  const inputTypes = { text: 'text', url: 'url', date: 'date', int: 'number', tags: 'text' }
+  const range = field.type === 'score' ? [1, 10] : [1, 5]
+%>
+<div class="<%= field.wide ? 'col-12' : 'col-12 col-sm-6' %>">
+<% if (field.type === 'bool') { %>
+  <div class="form-check form-switch pt-sm-4">
+    <input class="form-check-input" type="checkbox" role="switch" id="<%= id %>" name="<%= field.name %>"<%= value ? ' checked' : '' %>>
+    <label class="form-check-label" for="<%= id %>"><%= field.label %></label>
+  </div>
+<% } else { %>
+  <label class="form-label" for="<%= id %>">
+    <%= field.label %><% if (field.required) { %> <span class="text-danger">*</span><% } %><% if (field.unit) { %> <span class="small text-body-secondary">(<%= field.unit %>)</span><% } %>
+  </label>
+  <% if (field.type === 'textarea') { %>
+    <textarea class="form-control<%= invalid %>" id="<%= id %>" name="<%= field.name %>" rows="4" placeholder="<%= field.placeholder || '' %>"><%= value %></textarea>
+  <% } else if (field.type === 'score' || field.type === 'rating') { %>
+    <select class="form-select<%= invalid %>" id="<%= id %>" name="<%= field.name %>"<%= field.type === 'score' ? ' data-score' : '' %>>
+      <option value="">선택 안 함</option>
+      <% for (let n = range[0]; n <= range[1]; n += 1) { %>
+        <option value="<%= n %>"<%= String(n) === value ? ' selected' : '' %>><%= field.type === 'rating' ? `${'★'.repeat(n)} ${n}점` : n %></option>
+      <% } %>
+    </select>
+  <% } else { %>
+    <input class="form-control<%= invalid %>" id="<%= id %>" name="<%= field.name %>" type="<%= inputTypes[field.type] %>" value="<%= value %>" placeholder="<%= field.placeholder || '' %>"<%= field.required ? ' required' : '' %><%- field.type === 'int' ? ` inputmode="numeric" min="${field.min ?? 0}" step="1"` : '' %>>
+  <% } %>
+  <% if (field.type === 'tags') { %><div class="form-text">쉼표(,)로 구분해서 입력하세요.</div><% } %>
+  <% if (error) { %><div class="invalid-feedback"><%= error %></div><% } %>
+<% } %>
+</div>
