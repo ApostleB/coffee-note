@@ -1,4 +1,4 @@
-import sharp from 'sharp'
+import sharp, { type Metadata } from 'sharp'
 import { HttpError } from './errors.js'
 
 const ALLOWED_FORMATS = new Set(['jpeg', 'png', 'webp'])
@@ -14,7 +14,7 @@ export type ProcessedImage = { main: Buffer; thumb: Buffer }
 
 /** EXIF 방향을 바로잡고 본 이미지(긴 변 1600px)와 썸네일(긴 변 480px)을 WebP로 만든다 */
 export async function processImage(input: Buffer): Promise<ProcessedImage> {
-  let metadata: sharp.Metadata
+  let metadata: Metadata
   try {
     metadata = await sharp(input).metadata()
   } catch {
