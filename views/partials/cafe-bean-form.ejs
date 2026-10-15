@@ -1,8 +1,9 @@
-<fieldset class="card" data-bean-row<%= spare ? ' data-bean-spare' : '' %>>
+<% const beanNo = Number.isInteger(i) ? i + 1 : '' %>
+<fieldset class="card" aria-labelledby="bean-legend-<%= i %>" data-bean-row<%= spare ? ' data-bean-spare' : '' %>>
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-center mb-3">
-      <legend class="h6 mb-0 w-auto">원두 <span data-bean-number><%= Number.isInteger(i) ? i + 1 : '' %></span></legend>
-      <button class="btn btn-sm btn-outline-danger" type="button" data-remove-bean disabled>삭제</button>
+      <legend class="h6 mb-0 w-auto" id="bean-legend-<%= i %>">원두 <span data-bean-number><%= beanNo %></span></legend>
+      <button class="btn btn-sm btn-outline-danger" type="button" aria-label="원두 <%= beanNo %> 삭제" data-remove-bean disabled>삭제</button>
     </div>
     <div class="row g-3">
       <% beanFields.forEach((field) => { %>

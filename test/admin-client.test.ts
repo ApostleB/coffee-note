@@ -155,4 +155,29 @@ describe('카페 원두 동적 폼', () => {
     expect(rows()).toHaveLength(1)
     expect(add().disabled).toBe(false)
   })
+
+  it('원두 행의 그룹 이름과 삭제 버튼 이름이 번호와 함께 재정렬된다', async () => {
+    await form()
+    admin.initBeanRows(document)
+    add().click()
+    add().click()
+    const accName = (el: Element, attr: string) => {
+      const ids = el.getAttribute(attr)
+      return el.getAttribute('aria-label') ?? document.getElementById(ids!)?.textContent?.trim()
+    }
+    const removeNames = () => rows().map(row => remove(row).getAttribute('aria-label'))
+    expect(removeNames()).toEqual(['원두 1 삭제', '원두 2 삭제', '원두 3 삭제'])
+    const groupNames = () => rows().map(row => {
+      const legend = document.getElementById(row.getAttribute('aria-labelledby')!)
+      return legend?.textContent?.replace(/\s+/g, ' ').trim()
+    })
+    expect(groupNames()).toEqual(['원두 1', '원두 2', '원두 3'])
+    expect(accName(rows()[0], 'aria-labelledby')).toBe('원두 1')
+    remove(rows()[1]).click()
+    expect(removeNames()).toEqual(['원두 1 삭제', '원두 2 삭제'])
+    expect(groupNames()).toEqual(['원두 1', '원두 2'])
+    const legendIds = rows().map(row => row.getAttribute('aria-labelledby'))
+    expect(new Set(legendIds).size).toBe(2)
+    expect(legendIds).toEqual(['bean-legend-0', 'bean-legend-1'])
+  })
 })

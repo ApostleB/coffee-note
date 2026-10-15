@@ -76,6 +76,12 @@ export function initBeanRows(root) {
       if (number) number.textContent = String(index + 1)
       const remove = /** @type {HTMLButtonElement} */ (row.querySelector('[data-remove-bean]'))
       remove.disabled = current.length <= 1
+      remove.setAttribute('aria-label', `원두 ${index + 1} 삭제`)
+      const legend = row.querySelector('legend')
+      if (legend) {
+        legend.id = `bean-legend-${index}`
+        row.setAttribute('aria-labelledby', legend.id)
+      }
       const inputs = /** @type {(HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement)[]} */ ([...row.querySelectorAll('[name]')])
       const hasValue = inputs.some(input => input.name === 'bean_is_decaf' ? input.value === 'true' : input.value.trim() !== '')
       for (const input of inputs) {
