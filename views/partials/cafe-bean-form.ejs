@@ -1,0 +1,13 @@
+<fieldset class="card" data-bean-row<%= spare ? ' data-bean-spare' : '' %>>
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <legend class="h6 mb-0 w-auto">원두 <span data-bean-number><%= Number.isInteger(i) ? i + 1 : '' %></span></legend>
+      <button class="btn btn-sm btn-outline-danger" type="button" data-remove-bean disabled>삭제</button>
+    </div>
+    <div class="row g-3">
+      <% beanFields.forEach((field) => { %>
+        <%- include('field', { field, value: row[field.name] ?? '', error: spare ? undefined : errors[`beans.${i}.${field.name}`], inputName: beanInputKey(field.name), inputId: `f-bean-${i}-${field.name}`, boolAsSelect: true, optionalBlank: spare }) %>
+      <% }) %>
+    </div>
+  </div>
+</fieldset>

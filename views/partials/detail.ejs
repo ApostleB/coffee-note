@@ -48,4 +48,32 @@
       <% } %>
     </div>
   <% } %>
+  <% if (beans.length) { %>
+    <section class="mt-4" aria-labelledby="detail-beans-title">
+      <h3 class="h5" id="detail-beans-title">마신 원두</h3>
+      <div class="row row-cols-1 row-cols-md-2 g-3">
+        <% beans.forEach((bean) => { %>
+          <div class="col" data-bean-detail>
+            <article class="card h-100">
+              <div class="card-body">
+                <h4 class="h6 fw-bold"><%= bean.name %></h4>
+                <dl class="row small mb-0">
+                  <% bean.rows.forEach((row) => { %>
+                    <dt class="col-5 fw-normal text-body-secondary"><%= row.label %></dt>
+                    <dd class="col-7"><%= row.value %></dd>
+                  <% }) %>
+                </dl>
+                <% if (bean.tags.length) { %>
+                  <div class="coffee-tags coffee-tags--wrap">
+                    <% bean.tags.forEach((tag) => { %><span class="badge rounded-pill bg-secondary-subtle text-secondary-emphasis fw-normal">#<%= tag %></span><% }) %>
+                  </div>
+                <% } %>
+                <% if (bean.memo) { %><p class="coffee-memo small mt-3 mb-0"><%= bean.memo %></p><% } %>
+              </div>
+            </article>
+          </div>
+        <% }) %>
+      </div>
+    </section>
+  <% } %>
 </div>

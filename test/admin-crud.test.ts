@@ -172,6 +172,23 @@ describeDb('관리자 작성·수정·삭제', () => {
     expect((await repos.cafe.get(1))?.beans?.map((b) => b.name)).toEqual(['다'])
   })
 
+  it('카페 수정은 저장된 두 행과 빈 행을 렌더하고 두 번째 행 오류를 보존한다', async () => {
+    await agent.post('/admin/cafe-visits').type('form').send({ cafeName: '카페', bean_name: ['첫 원두', '둘째 원두'] }).expect(303)
+    const edit = await agent.get('/admin/cafe-visits/1/edit').expect(200)
+    const rendered = edit.text.split('<template')[0]
+    expect(rendered.match(/data-bean-row/g)).toHaveLength(3)
+    expect(rendered).toContain('value="첫 원두"')
+    expect(rendered).toContain('value="둘째 원두"')
+    expect(rendered).toContain('data-bean-spare')
+    const bad = await agent.post('/admin/cafe-visits/1').type('form').send({
+      cafeName: '카페', bean_name: ['첫 원두', ''], bean_country: ['', '케냐'], bean_is_decaf: ['false', 'true'],
+    }).expect(400)
+    expect(bad.text).toMatch(/class="form-control is-invalid"[^>]*id="f-bean-1-name"/)
+    expect(bad.text).toContain('value="케냐"')
+    expect(bad.text).toContain('마신 원두·메뉴 항목은 필수입니다')
+    expect((await repos.cafe.get(1))?.beans?.map(b => b.name)).toEqual(['첫 원두', '둘째 원두'])
+  })
+
   it('로그인하지 않으면 저장할 수 없다', async () => {
     const res = await request(app).post('/admin/beans').type('form').send({ name: 'a', shop: 'b' })
     expect(res.status).toBe(303)

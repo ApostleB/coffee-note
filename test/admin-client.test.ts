@@ -1,4 +1,11 @@
 // @vitest-environment jsdom
+import ejs from 'ejs'
+import path from 'node:path'
+import { VIEWS_DIR } from '../src/paths.js'
+import { cafeVisitDef } from '../src/resources.js'
+import { CAFE_BEAN_FIELDS, formValues } from '../src/fields.js'
+import { beanInputKey, CAFE_BEAN_SECTION } from '../src/cafe-beans.js'
+import * as admin from '../public/js/admin.js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { initConfirm, initListFilter, initTotalScore } from '../public/js/admin.js'
 
@@ -89,5 +96,63 @@ describe('initListFilter', () => {
     type('')
     expect(visible()).toEqual(['구지', '케냐'])
     expect(root.querySelector<HTMLElement>('#admin-empty')!.hidden).toBe(true)
+  })
+})
+
+
+describe('카페 원두 동적 폼', () => {
+  async function form() {
+    const html = await ejs.renderFile(path.join(VIEWS_DIR, 'admin/form.ejs'), {
+      title: '카페 후기 수정', active: 'cafe-visits', assetVersion: 't', importMapJson: '{"imports":{}}', isAdmin: true,
+      def: cafeVisitDef, entity: { id: 1, photos: [] }, values: formValues(cafeVisitDef.sections, { cafeName: '카페' }),
+      errors: {}, action: '/admin/cafe-visits/1', listHref: '/admin/cafe-visits', saved: false, copied: false, photoError: null,
+      beanFields: CAFE_BEAN_FIELDS, beanInputKey,
+      beanRows: [formValues([CAFE_BEAN_SECTION], { name: '기존 원두', isDecaf: true })],
+    })
+    document.body.innerHTML = html
+  }
+  const rows = () => [...document.querySelectorAll<HTMLElement>('[data-bean-row]')]
+  const add = () => document.querySelector<HTMLButtonElement>('[data-add-bean]')!
+  const remove = (row: HTMLElement) => row.querySelector<HTMLButtonElement>('[data-remove-bean]')!
+
+  it('JS 없이 기존 행과 필수가 아닌 빈 여분 행을 렌더링한다', async () => {
+    await form()
+    expect(rows()).toHaveLength(2)
+    const spare = rows()[1].querySelector<HTMLInputElement>('[name="bean_name"]')!
+    expect(spare.value).toBe('')
+    expect(spare.required).toBe(false)
+    expect(document.querySelector<HTMLFormElement>('#entry-form')!.checkValidity()).toBe(true)
+  })
+
+  it('추가·삭제·최소 1행·최대 20행과 평탄 전송 키를 유지한다', async () => {
+    await form()
+    expect(add()).not.toBeNull()
+    admin.initBeanRows(document)
+    expect(rows()).toHaveLength(1)
+    expect(remove(rows()[0]).disabled).toBe(true)
+    add().click()
+    expect(rows()).toHaveLength(2)
+    expect(rows()[1].querySelector<HTMLInputElement>('[name="bean_name"]')!.value).toBe('')
+    for (let i = 0; i < 25; i++) add().click()
+    expect(rows()).toHaveLength(20)
+    expect(add().disabled).toBe(true)
+    const names = CAFE_BEAN_FIELDS.map(f => beanInputKey(f.name)).sort()
+    for (const row of rows()) {
+      const inputs = [...row.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('[name]')]
+      expect(inputs.map(input => input.name).sort()).toEqual(names)
+      expect(inputs.every(input => !input.disabled)).toBe(true)
+      expect(row.querySelector('[name="bean_is_decaf"]')!.tagName).toBe('SELECT')
+    }
+    remove(rows()[5]).click()
+    add().click()
+    const ids = rows().flatMap(row => [...row.querySelectorAll('[id]')].map(el => el.id))
+    expect(new Set(ids).size).toBe(ids.length)
+    for (const label of document.querySelectorAll<HTMLLabelElement>('#beans label')) expect(document.getElementById(label.htmlFor)).not.toBeNull()
+    const data = new FormData(document.querySelector<HTMLFormElement>('#entry-form')!)
+    for (const name of names) expect(data.getAll(name)).toHaveLength(20)
+    while (rows().length > 1) remove(rows().at(-1)!).click()
+    remove(rows()[0]).click()
+    expect(rows()).toHaveLength(1)
+    expect(add().disabled).toBe(false)
   })
 })

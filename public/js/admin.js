@@ -53,3 +53,56 @@ export function initListFilter(root) {
     if (empty) empty.hidden = shown > 0
   })
 }
+
+/**
+ * 카페 원두 행을 추가·삭제한다. 반복 키는 유지하고 id/label만 행 순서에 맞춘다.
+ * @param {ParentNode} root
+ */
+export function initBeanRows(root) {
+  const section = root.querySelector('#beans')
+  const list = section?.querySelector('[data-bean-list]')
+  const template = /** @type {HTMLTemplateElement | null | undefined} */ (section?.querySelector('[data-bean-template]'))
+  const add = /** @type {HTMLButtonElement | null | undefined} */ (section?.querySelector('[data-add-bean]'))
+  if (!section || !list || !template || !add) return
+  const max = Number(section.getAttribute('data-max-beans'))
+  const rows = () => [...list.querySelectorAll('[data-bean-row]')]
+  // JS 없는 환경을 위한 빈 여분 행만 제거한다. 제출값/검증 오류 행은 보존한다.
+  for (const spare of list.querySelectorAll('[data-bean-spare]')) spare.remove()
+  const sync = () => {
+    const current = rows()
+    add.disabled = current.length >= max
+    current.forEach((row, index) => {
+      const number = row.querySelector('[data-bean-number]')
+      if (number) number.textContent = String(index + 1)
+      const remove = /** @type {HTMLButtonElement} */ (row.querySelector('[data-remove-bean]'))
+      remove.disabled = current.length <= 1
+      const inputs = /** @type {(HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement)[]} */ ([...row.querySelectorAll('[name]')])
+      const hasValue = inputs.some(input => input.name === 'bean_is_decaf' ? input.value === 'true' : input.value.trim() !== '')
+      for (const input of inputs) {
+        const label = [...row.querySelectorAll('label')].find(label => label.htmlFor === input.id)
+        input.id = `f-bean-${index}-${input.name.slice(5)}`
+        if (label) label.htmlFor = input.id
+        if (input.name === 'bean_name') input.required = current.length === 1 || hasValue
+      }
+    })
+  }
+  add.hidden = false
+  add.addEventListener('click', () => {
+    if (rows().length >= max) return
+    const fragment = template.content.cloneNode(true)
+    list.append(fragment)
+    sync()
+    const name = /** @type {HTMLInputElement | null | undefined} */ (rows().at(-1)?.querySelector('[name="bean_name"]'))
+    name?.focus()
+  })
+  list.addEventListener('click', event => {
+    if (!(event.target instanceof Element)) return
+    const button = event.target.closest('[data-remove-bean]')
+    if (!button || rows().length <= 1) return
+    button.closest('[data-bean-row]')?.remove()
+    sync()
+  })
+  list.addEventListener('input', sync)
+  list.addEventListener('change', sync)
+  sync()
+}

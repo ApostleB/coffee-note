@@ -67,6 +67,22 @@ describeDb('공개 페이지', () => {
     expect(res.text).not.toContain('/admin/cafe-visits/1/edit')
   })
 
+  it('카페 상세에 원두별 카드와 상세 값이 표시되고 사용자 입력은 이스케이프된다', async () => {
+    await repos.cafe.update(1, prepared(cafeVisitDef, {
+      cafeName: '카페', bean_name: ['<script>alert(1)</script>', '두 번째 원두'],
+      bean_country: ['파나마', '케냐'], bean_variety: ['게이샤, 버번', ''], bean_brew_method: ['필터', ''],
+      bean_price: ['9000', ''], bean_rating: ['5', ''], bean_flavor_tags: ['<꽃>', ''], bean_memo: ['<img src=x onerror=alert(1)>', '둘째 메모'],
+    }))
+    for (const url of ['/cafe-visits/1', '/cafe-visits/1?fragment=1']) {
+      const res = await request(app).get(url).expect(200)
+      expect(res.text.match(/data-bean-detail/g)).toHaveLength(2)
+      expect(res.text).toContain('row-cols-1 row-cols-md-2')
+      for (const value of ['마신 원두', '게이샤, 버번', '9,000원', '★★★★★', '둘째 메모', '&lt;꽃&gt;', '&lt;script&gt;']) expect(res.text).toContain(value)
+      expect(res.text).not.toContain('<script>alert(1)</script>')
+      expect(res.text).not.toContain('<img src=x')
+    }
+  })
+
   it.each(['/beans/999', '/beans/abc', '/cafe-visits/0'])('%s는 404', async (url) => {
     const res = await request(app).get(url)
     expect(res.status).toBe(404)
