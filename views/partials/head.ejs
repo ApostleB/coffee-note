@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title><%= locals.title ? `${locals.title} · Coffee Note` : 'Coffee Note' %></title>
+  <script type="importmap"><%- importMapJson %></script>
   <script src="/js/theme.js?v=<%= assetVersion %>"></script>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>">
   <link rel="stylesheet" href="/vendor/pretendard/pretendardvariable-dynamic-subset.css">

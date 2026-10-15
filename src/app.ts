@@ -1,3 +1,5 @@
+import { readdirSync } from 'node:fs'
+import path from 'node:path'
 import cookieParser from 'cookie-parser'
 import express from 'express'
 import type { Pool } from 'pg'
@@ -11,6 +13,7 @@ import { createRepos } from './repository.js'
 import { adminRouter } from './routes/admin.js'
 import { publicRouter } from './routes/public.js'
 import { createStorage } from './storage.js'
+import { jsonForScript } from './view-helpers.js'
 
 export type AppDeps = { config: Config; pool: Pool; loginGuard?: LoginGuard }
 
@@ -23,9 +26,18 @@ export function createApp({ config, pool, loginGuard = createLoginGuard() }: App
   app.set('views', VIEWS_DIR)
   // 정적 파일 캐시 무효화용 버전 (?v=)
   app.locals.assetVersion = Date.now().toString(36)
+  // URL 키는 상대 import에도 적용된다. 시작 시 열거하여 새 모듈의 매핑 누락을 방지한다.
+  const moduleFiles = readdirSync(path.join(PUBLIC_DIR, 'js'), { withFileTypes: true })
+    .filter((file) => file.isFile() && file.name.endsWith('.js') && file.name !== 'theme.js')
+  app.locals.importMapJson = jsonForScript({
+    imports: Object.fromEntries(moduleFiles.map(({ name }) => {
+      const url = `/js/${encodeURIComponent(name)}`
+      return [url, `${url}?v=${app.locals.assetVersion}`]
+    })),
+  })
 
   const staticOptions = { maxAge: '7d' }
-  // ES 모듈의 하위 import(./query.js 등)에는 ?v=를 붙일 수 없으므로 JS는 매번 ETag로 재검증한다
+  // import map으로 기존 캐시를 우회하고, JS는 계속 ETag로 재검증한다
   app.use(
     express.static(PUBLIC_DIR, {
       ...staticOptions,

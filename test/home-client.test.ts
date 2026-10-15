@@ -48,7 +48,7 @@ function setControl(name: string, value: string | boolean) {
 beforeEach(async () => {
   const html = await ejs.renderFile(path.join(VIEWS_DIR, 'home.ejs'), {
     ...buildHomeModel(beans, cafes, '2026-10-08'),
-    assetVersion: 't',
+    assetVersion: 't', importMapJson: '{"imports":{}}',
     isAdmin: false,
   })
   document.body.innerHTML = html
@@ -181,7 +181,7 @@ describe('홈 원두 옵션 필터', () => {
   })
   it('JS 없이도 선택지 렌더링·빈 필드 숨김·HTML escaping', async () => {
     document.body.innerHTML = await ejs.renderFile(path.join(VIEWS_DIR, 'home.ejs'), {
-      ...buildHomeModel([beanEntity({ country: '<산지>', process: null, roastLevel: null, variety: [], brewMethod: null, flavorTags: [] })], cafes), assetVersion: 't', isAdmin: false,
+      ...buildHomeModel([beanEntity({ country: '<산지>', process: null, roastLevel: null, variety: [], brewMethod: null, flavorTags: [] })], cafes), assetVersion: 't', importMapJson: '{"imports":{}}', isAdmin: false,
     })
     expect([...$<HTMLSelectElement>('[name="bf-country"]').options].map(o => o.value)).toEqual(['', '<산지>'])
     expect($<HTMLSelectElement>('[name="bf-process"]').parentElement!.hidden).toBe(true)
@@ -191,7 +191,7 @@ describe('홈 원두 옵션 필터', () => {
     expect($('#bean-filter-toggle').getAttribute('data-bs-target')).toBe('#bean-filter-panel')
   })
   it('초기 컨트롤 복원값으로 필터링', async () => {
-    document.body.innerHTML = await ejs.renderFile(path.join(VIEWS_DIR, 'home.ejs'), { ...buildHomeModel(beans, cafes), assetVersion: 't', isAdmin: false })
+    document.body.innerHTML = await ejs.renderFile(path.join(VIEWS_DIR, 'home.ejs'), { ...buildHomeModel(beans, cafes), assetVersion: 't', importMapJson: '{"imports":{}}', isAdmin: false })
     $<HTMLSelectElement>('[name="bf-flavorTag"]').value = '자스민'
     initHome(document, { bootstrap: { Modal: { getOrCreateInstance: () => ({ show }) } }, fetch: fetchMock as unknown as typeof fetch })
     expect(visibleKeys()).toEqual(['bean-1'])
@@ -202,7 +202,7 @@ describe('홈 원두 옵션 필터', () => {
 
 describe('초기 탭과 필터 레이아웃', () => {
   it.each(['cafe', 'none'])('초기 활성 탭 %s에서 범위를 읽고 없으면 원두를 쓴다', async (active) => {
-    document.body.innerHTML = await ejs.renderFile(path.join(VIEWS_DIR, 'home.ejs'), { ...buildHomeModel(beans, cafes), assetVersion: 't', isAdmin: false })
+    document.body.innerHTML = await ejs.renderFile(path.join(VIEWS_DIR, 'home.ejs'), { ...buildHomeModel(beans, cafes), assetVersion: 't', importMapJson: '{"imports":{}}', isAdmin: false })
     $('[data-scope-tab="bean"]').classList.remove('active')
     if (active === 'cafe') $('[data-scope-tab="cafe"]').classList.add('active')
     initHome(document, { bootstrap: { Modal: { getOrCreateInstance: () => ({ show }) } }, fetch: fetchMock as unknown as typeof fetch })
@@ -211,7 +211,7 @@ describe('초기 탭과 필터 레이아웃', () => {
   })
 
   it.each([{ emptyBeans: [] }, { emptyBeans: [beanEntity({ country: null, process: null, roastLevel: null, variety: [], brewMethod: null, flavorTags: [] })] }])('원두 선택지가 모두 비면 SSR과 탭 왕복 후에도 패널과 토글을 숨긴다', async ({ emptyBeans }) => {
-    document.body.innerHTML = await ejs.renderFile(path.join(VIEWS_DIR, 'home.ejs'), { ...buildHomeModel(emptyBeans, cafes), assetVersion: 't', isAdmin: false })
+    document.body.innerHTML = await ejs.renderFile(path.join(VIEWS_DIR, 'home.ejs'), { ...buildHomeModel(emptyBeans, cafes), assetVersion: 't', importMapJson: '{"imports":{}}', isAdmin: false })
     expect($('#bean-filters').hidden).toBe(true)
     expect($('#bean-filter-toggle').hidden).toBe(true)
     initHome(document, { bootstrap: { Modal: { getOrCreateInstance: () => ({ show }) } }, fetch: fetchMock as unknown as typeof fetch })
