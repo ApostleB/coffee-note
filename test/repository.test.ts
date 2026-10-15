@@ -160,6 +160,47 @@ describeDb('repository', () => {
       expect((await beanRows()).filter((r) => r.cafe_visit_id === copy.id)).toHaveLength(2)
     })
 
+    // 다른 연결이 원본 방문 행을 잠근 채 수정/삭제 중일 때 복사는 그 커밋을 기다렸다가 완결된 상태를 복사해야 한다
+    const settledWithin = async (promise: Promise<unknown>, ms: number) =>
+      Promise.race([promise.then(() => true, () => true), new Promise<boolean>((r) => setTimeout(() => r(false), ms))])
+
+    it('복사는 진행 중인 수정이 커밋될 때까지 기다리고 수정된 방문+원두를 통째로 복사한다', async () => {
+      const src = await repos.cafe.create(prepared(cafeVisitDef, body(['가', '나'])))
+      const other = await pool.connect()
+      try {
+        await other.query('BEGIN')
+        await other.query(`UPDATE cafe_visits SET cafe_name = '새 카페' WHERE id = $1`, [src.id])
+        const copying = repos.cafe.copy(src.id)
+        expect(await settledWithin(copying, 400)).toBe(false)
+        await other.query('DELETE FROM cafe_visit_beans WHERE cafe_visit_id = $1', [src.id])
+        await other.query(`INSERT INTO cafe_visit_beans (cafe_visit_id, position, name) VALUES ($1, 0, '새 원두')`, [src.id])
+        await other.query('COMMIT')
+        const copy = (await copying)!
+        expect(copy.cafeName).toBe('새 카페 (복사)')
+        expect(copy.beans!.map((b) => b.name)).toEqual(['새 원두'])
+      } finally {
+        await other.query('ROLLBACK').catch(() => {})
+        other.release()
+      }
+    })
+
+    it('복사는 진행 중인 삭제가 커밋되면 null을 돌려주고 원두 없는 복사본을 만들지 않는다', async () => {
+      const src = await repos.cafe.create(prepared(cafeVisitDef, body(['가', '나'])))
+      const other = await pool.connect()
+      try {
+        await other.query('BEGIN')
+        await other.query('DELETE FROM cafe_visits WHERE id = $1', [src.id])
+        const copying = repos.cafe.copy(src.id)
+        expect(await settledWithin(copying, 400)).toBe(false)
+        await other.query('COMMIT')
+        expect(await copying).toBeNull()
+        expect(await repos.cafe.list()).toEqual([])
+      } finally {
+        await other.query('ROLLBACK').catch(() => {})
+        other.release()
+      }
+    })
+
     it('원두 저장이 실패하면 방문도 저장하지 않는다', async () => {
       const data = prepared(cafeVisitDef, body(['가']))
       await expect(repos.cafe.create({ ...data, beans: [{ ...(data.beans as object[])[0], price: -5 }] })).rejects.toThrow()

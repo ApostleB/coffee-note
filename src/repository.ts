@@ -122,7 +122,8 @@ export function createResourceRepo(pool: Pool, def: ResourceDef): ResourceRepo {
       // 같은 종류의 복사는 직렬화해서, 제목을 고른 뒤 INSERT하기 전에 다른 복사가 끼어들지 못하게 한다
       return withTransaction(pool, async (client) => {
         await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`copy:${def.table}`])
-        const { rows } = await client.query(`SELECT * FROM ${def.table} WHERE id = $1`, [id])
+        // 원본 방문을 잠가 원두 읽기·복사가 끝날 때까지 update/remove 가 끼어들지 못하게 한다 (advisory lock 다음 순서)
+        const { rows } = await client.query(`SELECT * FROM ${def.table} WHERE id = $1 FOR UPDATE`, [id])
         if (rows.length === 0) return null
         const sourceBeans = def.hasBeans ? ((await loadBeans(client, [id])).get(id) ?? []) : []
         const source = toEntity(def, rows[0], [], sourceBeans)

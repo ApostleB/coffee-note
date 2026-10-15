@@ -44,11 +44,9 @@ describe('parseBeanRows', () => {
     expect(parseBeanRows('oops')).toEqual([])
   })
 
-  it('배열 길이가 달라도 짧은 쪽은 빈 값으로 본다', () => {
-    expect(parseBeanRows({ bean_name: ['a', 'b'], bean_country: ['파나마'] })).toEqual([
-      { name: 'a', country: '파나마' },
-      { name: 'b' },
-    ])
+  it("'false'는 이름 등 일반 필드에서는 빈 값이 아니다", () => {
+    expect(parseBeanRows({ bean_name: ['정상', 'false'], bean_is_decaf: ['false', 'false'] }).map((r) => r.name)).toEqual(['정상', 'false'])
+    expect(parseBeanRows({ bean_name: ['정상', ''], bean_price: ['', 'false'] })).toHaveLength(2)
   })
 })
 
@@ -107,6 +105,47 @@ describe('validateBeans', () => {
       'name', 'country', 'variety', 'process', 'brewMethod', 'isDecaf', 'flavorTags', 'price', 'rating', 'memo',
     ])
     expect(CAFE_BEAN_FIELDS[0]).toMatchObject({ required: true, label: '마신 원두·메뉴' })
+  })
+})
+
+describe('validateBeans: 열 길이 불일치', () => {
+  const mismatch = { ok: false, errors: { beans: '원두 입력 형식이 올바르지 않습니다' } }
+
+  it('배열 2개 + 문자열 1개 혼합은 오류', () => {
+    expect(validateBeans({ bean_name: ['a', 'b'], bean_is_decaf: 'true' })).toEqual(mismatch)
+  })
+  it('일부 열이 짧거나 길면 오류', () => {
+    expect(validateBeans({ bean_name: ['a', 'b'], bean_country: ['파나마'] })).toEqual(mismatch)
+    expect(validateBeans({ bean_name: ['a'], bean_country: ['파나마', '케냐'] })).toEqual(mismatch)
+  })
+  it('같은 길이면 통과하고, 선택 열을 모두 생략해도 통과한다', () => {
+    expect(validateBeans({ bean_name: ['a', 'b'], bean_country: ['파나마', '케냐'] })).toMatchObject({ ok: true })
+    const omitted = validateBeans({ bean_name: ['a', 'b'] })
+    expect(omitted).toMatchObject({ ok: true })
+    expect(omitted.ok && omitted.beans.map((b) => b.isDecaf)).toEqual([false, false])
+  })
+})
+
+describe('validateBeans: false 문자열', () => {
+  it("이름 'false'는 보존한다", () => {
+    const r = validateBeans({ bean_name: ['false'], bean_is_decaf: ['false'] })
+    expect(r.ok && r.beans[0].name).toBe('false')
+  })
+  it("다른 텍스트 필드가 'false'뿐인 무명 행은 이름 필수 오류", () => {
+    expect(validateBeans({ bean_name: ['ok', ''], bean_country: ['', 'false'] })).toEqual({
+      ok: false,
+      errors: { 'beans.1.name': '마신 원두·메뉴 항목은 필수입니다' },
+    })
+  })
+  it("숫자 필드 'false'는 숫자 오류", () => {
+    expect(validateBeans({ bean_name: ['ok', ''], bean_price: ['', 'false'] })).toEqual({
+      ok: false,
+      errors: { 'beans.1.name': '마신 원두·메뉴 항목은 필수입니다', 'beans.1.price': '숫자를 입력하세요' },
+    })
+  })
+  it("bool 'false'만 있는 행은 무시", () => {
+    const r = validateBeans({ bean_name: ['ok', ''], bean_is_decaf: ['false', 'false'] })
+    expect(r.ok && r.beans).toHaveLength(1)
   })
 })
 
