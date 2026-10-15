@@ -144,7 +144,7 @@ describeDb('관리자 사진', () => {
   })
 
   it('카페 후기에도 올릴 수 있다', async () => {
-    await repos.cafe.create(prepared(cafeVisitDef, { menu: '게이샤 필터', cafeName: '프릳츠' }))
+    await repos.cafe.create(prepared(cafeVisitDef, { bean_name: '게이샤 필터', cafeName: '프릳츠' }))
     const res = await upload('/admin/cafe-visits/1/photos', await png('#c08040'))
     expect(res.headers.location).toBe('/admin/cafe-visits/1/edit#photos')
     expect((await repos.cafe.get(1))?.photos).toHaveLength(1)

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { beanDef, cafeVisitDef } from '../src/resources.js'
 import { buildDetailModel, buildHomeModel, toCardModel } from '../src/view-models.js'
-import { beanEntity, cafeEntity } from './fixtures.js'
+import { beanEntity, cafeBean, cafeEntity } from './fixtures.js'
 
 const TODAY = '2026-10-08'
 
@@ -42,7 +42,8 @@ describe('toCardModel', () => {
       subtitle: '게이샤 필터',
       kindLabel: '카페',
       href: '/cafe-visits/1',
-      meta: '2026.10.05 · 필터',
+      meta: '2026.10.05',
+      tags: ['꽃', '시트러스'],
       summary: null,
       ready: false,
       score: { type: 'rating', value: 4 },
@@ -55,7 +56,7 @@ describe('buildHomeModel 품종 선택지', () => {
   it('모든 품종을 펼쳐 고유·가나다순, 카페 제외', () => {
     const model = buildHomeModel(
       [beanEntity({ id: 1, variety: ['버번', '게이샤'] }), beanEntity({ id: 2, variety: ['버번', '티피카'] }), beanEntity({ id: 3, variety: [] })],
-      [cafeEntity({ variety: ['카페전용'] })],
+      [cafeEntity({ beans: [cafeBean({ variety: ['카페전용'] })] })],
     )
     expect(model.beanOptions.variety).toEqual(['게이샤', '버번', '티피카'])
   })
@@ -121,7 +122,6 @@ describe('buildDetailModel', () => {
     expect(model.rows).toContainEqual({ label: '품종', value: '게이샤, 버번' })
     expect(model.tags).toEqual(['베리', '자스민'])
     expect(buildDetailModel(beanDef, beanEntity({ variety: [] })).rows.map((r) => r.label)).not.toContain('품종')
-    expect(buildDetailModel(cafeVisitDef, cafeEntity({ variety: ['게이샤', '버번'] })).rows).toContainEqual({ label: '품종', value: '게이샤, 버번' })
   })
 
   it('디카페인이면 행에 표시', () => {
@@ -142,5 +142,40 @@ describe('buildDetailModel', () => {
     expect(model.memos.map((m) => m.label)).toEqual(['분위기 메모', '메모'])
     expect(model.links).toEqual([{ label: '지도에서 보기', href: 'https://map.naver.com/p/fritz' }])
     expect(model.editHref).toBe('/admin/cafe-visits/1/edit')
+    expect(model.tags).toEqual(['꽃', '시트러스'])
+  })
+
+  it('카페 상세에 원두별 모델을 붙인다', () => {
+    const model = buildDetailModel(
+      cafeVisitDef,
+      cafeEntity({
+        beans: [
+          cafeBean({ rating: 5, memo: '향이 좋다', isDecaf: true, variety: ['게이샤', '버번'] }),
+          cafeBean({ name: '라떼', country: null, variety: [], process: null, brewMethod: null, price: null, flavorTags: [] }),
+        ],
+      }),
+    )
+    expect(model.subtitle).toBe('게이샤 필터 · 라떼')
+    expect(model.beans).toHaveLength(2)
+    expect(model.beans[0]).toEqual({
+      name: '게이샤 필터',
+      rows: [
+        { label: '산지 국가', value: '파나마' },
+        { label: '품종', value: '게이샤, 버번' },
+        { label: '가공', value: '워시드' },
+        { label: '추출방식', value: '필터' },
+        { label: '디카페인', value: '예' },
+        { label: '가격', value: '9,000원' },
+        { label: '별점', value: '★★★★★' },
+      ],
+      tags: ['꽃', '시트러스'],
+      memo: '향이 좋다',
+    })
+    expect(model.beans[1]).toEqual({ name: '라떼', rows: [], tags: [], memo: null })
+    expect(model.rows.map((r) => r.label)).not.toContain('품종')
+  })
+
+  it('원두 노트 상세의 beans는 빈 배열', () => {
+    expect(buildDetailModel(beanDef, beanEntity()).beans).toEqual([])
   })
 })

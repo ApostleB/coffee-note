@@ -9,7 +9,8 @@ import {
 } from '../auth.js'
 import type { Config } from '../config.js'
 import { HttpError, parseId } from '../errors.js'
-import { formValues } from '../fields.js'
+import { beanInputKey, CAFE_BEAN_SECTION, parseBeanRows } from '../cafe-beans.js'
+import { CAFE_BEAN_FIELDS, formValues } from '../fields.js'
 import type { LoginGuard } from '../login-guard.js'
 import { receivePhotos, type PhotoOwner, type PhotoService } from '../photos.js'
 import { DEFS, prepare, type Entity, type ResourceDef } from '../resources.js'
@@ -26,9 +27,16 @@ type FormOptions = {
   saved?: boolean
   copied?: boolean
   photoError?: string | null
+  /** 원두 행 폼 값. 없으면 저장된 원두(없으면 빈 행 1개) */
+  beanRows?: Record<string, string | boolean>[]
 }
 
 const recordNotFound = () => new HttpError(404, '기록을 찾을 수 없습니다')
+
+const beanFormRows = (rows: Record<string, unknown>[]) => {
+  const values = rows.map((row) => formValues([CAFE_BEAN_SECTION], row))
+  return values.length > 0 ? values : [formValues([CAFE_BEAN_SECTION], null)]
+}
 
 function renderForm(res: Response, def: ResourceDef, options: FormOptions): void {
   const { entity } = options
@@ -45,6 +53,9 @@ function renderForm(res: Response, def: ResourceDef, options: FormOptions): void
     saved: options.saved ?? false,
     copied: options.copied ?? false,
     photoError: options.photoError ?? null,
+    beanFields: CAFE_BEAN_FIELDS,
+    beanInputKey,
+    beanRows: def.hasBeans ? (options.beanRows ?? beanFormRows((entity?.beans as Record<string, unknown>[] | undefined) ?? [])) : [],
   })
 }
 
@@ -124,7 +135,13 @@ export function adminRouter({ config, repos, photos, loginGuard }: AdminDeps): R
     router.post(`/${def.path}`, async (req, res) => {
       const result = prepare(def, req.body)
       if (!result.ok) {
-        renderForm(res, def, { entity: null, values: formValues(def.sections, req.body), errors: result.errors, status: 400 })
+        renderForm(res, def, {
+          entity: null,
+          values: formValues(def.sections, req.body),
+          beanRows: beanFormRows(parseBeanRows(req.body)),
+          errors: result.errors,
+          status: 400,
+        })
         return
       }
       const created = await repo.create(result.data)
@@ -143,7 +160,13 @@ export function adminRouter({ config, repos, photos, loginGuard }: AdminDeps): R
       if (!entity) throw recordNotFound()
       const result = prepare(def, req.body)
       if (!result.ok) {
-        renderForm(res, def, { entity, values: formValues(def.sections, req.body), errors: result.errors, status: 400 })
+        renderForm(res, def, {
+          entity,
+          values: formValues(def.sections, req.body),
+          beanRows: beanFormRows(parseBeanRows(req.body)),
+          errors: result.errors,
+          status: 400,
+        })
         return
       }
       await repo.update(id, result.data)

@@ -1,3 +1,4 @@
+import type { BeanRow } from '../src/cafe-beans.js'
 import { prepare, type Entity, type ResourceDef } from '../src/resources.js'
 
 /** 폼 본문을 검증·변환한 저장용 데이터. 검증에 실패하면 테스트를 깨뜨린다. */
@@ -41,24 +42,33 @@ export function beanEntity(overrides: Record<string, unknown> = {}): Entity {
   } as Entity
 }
 
-export function cafeEntity(overrides: Record<string, unknown> = {}): Entity {
+export function cafeBean(overrides: Record<string, unknown> = {}): BeanRow {
   return {
-    id: 1,
-    menu: '게이샤 필터',
-    cafeName: '프릳츠',
-    visitedAt: '2026-10-05',
-    rating: 4,
-    price: 9000,
-    brewMethod: '필터',
+    name: '게이샤 필터',
     country: '파나마',
     variety: ['게이샤'],
     process: '워시드',
+    brewMethod: '필터',
     isDecaf: false,
     flavorTags: ['꽃', '시트러스'],
+    price: 9000,
+    rating: null,
+    memo: null,
+    ...overrides,
+  }
+}
+
+export function cafeEntity(overrides: Record<string, unknown> = {}): Entity {
+  return {
+    id: 1,
+    cafeName: '프릳츠',
+    visitedAt: '2026-10-05',
+    rating: 4,
     address: '서울 마포구',
     mapUrl: 'https://map.naver.com/p/fritz',
     moodMemo: '창가 자리가 좋다',
     memo: '산미가 깔끔하다',
+    beans: [cafeBean()],
     createdAt: new Date('2026-10-05T10:00:00.000Z'),
     updatedAt: new Date('2026-10-05T10:00:00.000Z'),
     photos: [],

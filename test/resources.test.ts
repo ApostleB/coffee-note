@@ -56,7 +56,9 @@ describe('prepare(beanDef)', () => {
   it('품종은 쉼표로 나눈 배열, 비어 있으면 빈 배열', () => {
     expect(prepared(beanDef, { ...required, variety: '게이샤, 버번' })).toMatchObject({ variety: ['게이샤', '버번'] })
     expect(prepared(beanDef, { ...required, variety: '' })).toMatchObject({ variety: [] })
-    expect(prepared(cafeVisitDef, { menu: 'a', cafeName: 'b', variety: ' 게이샤 ,, 게이샤, 버번 ' })).toMatchObject({ variety: ['게이샤', '버번'] })
+    expect(prepared(cafeVisitDef, { cafeName: 'b', bean_name: 'a', bean_variety: ' 게이샤 ,, 게이샤, 버번 ' })).toMatchObject({
+      beans: [{ variety: ['게이샤', '버번'] }],
+    })
     expect(errorsOf(beanDef, { ...required, variety: 'a'.repeat(31) })).toHaveProperty('variety')
   })
 
@@ -112,12 +114,30 @@ describe('prepare 잘못된 타입 입력', () => {
 describe('prepare(cafeVisitDef)', () => {
   it('정상 입력', () => {
     expect(
-      prepared(cafeVisitDef, { menu: '게이샤 필터', cafeName: '프릳츠', rating: '4', mapUrl: 'https://map.naver.com/x' }),
-    ).toMatchObject({ menu: '게이샤 필터', cafeName: '프릳츠', rating: 4, mapUrl: 'https://map.naver.com/x' })
+      prepared(cafeVisitDef, { bean_name: '게이샤 필터', cafeName: '프릳츠', rating: '4', mapUrl: 'https://map.naver.com/x' }),
+    ).toMatchObject({ cafeName: '프릳츠', rating: 4, mapUrl: 'https://map.naver.com/x', beans: [{ name: '게이샤 필터' }] })
+  })
+
+  it('방문 데이터에는 원두 필드가 섞이지 않는다', () => {
+    const data = prepared(cafeVisitDef, { bean_name: 'a', cafeName: 'b', menu: 'x', price: '1000' })
+    expect(data).not.toHaveProperty('menu')
+    expect(data).not.toHaveProperty('price')
+  })
+
+  it('카페명과 원두 오류를 함께 돌려준다', () => {
+    expect(errorsOf(cafeVisitDef, { rating: '6' })).toEqual({
+      cafeName: '카페명 항목은 필수입니다',
+      rating: '5 이하여야 합니다',
+      beans: '원두를 1개 이상 입력하세요',
+    })
+    expect(errorsOf(cafeVisitDef, { cafeName: 'b', bean_name: ['a', ''], bean_price: ['', '-1'] })).toEqual({
+      'beans.1.name': '마신 원두·메뉴 항목은 필수입니다',
+      'beans.1.price': '0 이상이어야 합니다',
+    })
   })
 
   it('별점은 1~5', () => {
-    expect(errorsOf(cafeVisitDef, { menu: 'a', cafeName: 'b', rating: '6' })).toEqual({ rating: '5 이하여야 합니다' })
+    expect(errorsOf(cafeVisitDef, { bean_name: 'a', cafeName: 'b', rating: '6' })).toEqual({ rating: '5 이하여야 합니다' })
   })
 })
 

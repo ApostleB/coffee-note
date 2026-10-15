@@ -1,6 +1,7 @@
-import { allFields, findField, type FieldType } from './fields.js'
+import type { BeanRow } from './cafe-beans.js'
+import { allFields, CAFE_BEAN_FIELDS, findField, type FieldType } from './fields.js'
 import { beanDef, cafeVisitDef, type Entity, type Kind, type PhotoDto, type ResourceDef } from './resources.js'
-import { entryKey, toIndexEntry } from './search-index.js'
+import { entryKey, flavorTagsOf, isDecafOf, subtitleOf, toIndexEntry } from './search-index.js'
 import { displayValue, isReadyToDrink, jsonForScript, todayString } from './view-helpers.js'
 
 /** 홈 화면 첫 탭 */
@@ -42,6 +43,8 @@ export type DetailModel = {
   subtitle: string
   tags: string[]
   rows: { label: string; value: string }[]
+  /** 카페 후기의 원두별 상세 (원두 노트는 빈 배열) */
+  beans: { name: string; rows: { label: string; value: string }[]; tags: string[]; memo: string | null }[]
   memos: { label: string; text: string }[]
   links: { label: string; href: string }[]
   photos: PhotoDto[]
@@ -51,6 +54,8 @@ export type DetailModel = {
 const collator = new Intl.Collator('ko')
 const listOf = (value: unknown) => (Array.isArray(value) ? (value as string[]) : [])
 const tagsOf = (entity: Entity) => listOf(entity.flavorTags)
+/** 원두 행에서 이름·향미·메모를 뺀 표 행 */
+const BEAN_ROW_FIELDS = CAFE_BEAN_FIELDS.filter((field) => !['name', 'flavorTags', 'memo'].includes(field.name))
 
 export function toCardModel(def: ResourceDef, entity: Entity, today: string): CardModel {
   const scoreValue = entity[def.card.score]
@@ -71,12 +76,12 @@ export function toCardModel(def: ResourceDef, entity: Entity, today: string): Ca
     kindLabel: def.shortLabel,
     href: `/${def.path}/${entity.id}`,
     title: String(entity[def.card.title]),
-    subtitle: String(entity[def.card.subtitle]),
+    subtitle: subtitleOf(def, entity),
     meta: meta.join(' · '),
     summary: typeof summary === 'string' && summary !== '' ? summary : null,
-    tags: tagsOf(entity).slice(0, 4),
+    tags: flavorTagsOf(def, entity).slice(0, 4),
     thumbnailUrl: entity.thumbnailUrl,
-    isDecaf: entity.isDecaf === true,
+    isDecaf: isDecafOf(def, entity),
     ready: def.kind === 'bean' && isReadyToDrink(entity.bestFrom, today),
     score,
     hidden: def.kind !== DEFAULT_SCOPE,
@@ -112,6 +117,14 @@ const NOT_IN_ROWS: FieldType[] = ['textarea', 'url']
 /** 배지로 따로 보여주므로 상세 표의 행에서 빼는 필드 */
 const BADGE_FIELD = 'flavorTags'
 
+function toBeanDetail(bean: BeanRow): DetailModel['beans'][number] {
+  const rows = BEAN_ROW_FIELDS.flatMap((field) => {
+    const value = displayValue(field, bean[field.name as keyof BeanRow])
+    return value === null ? [] : [{ label: field.label, value }]
+  })
+  return { name: bean.name, rows, tags: bean.flavorTags, memo: bean.memo || null }
+}
+
 export function buildDetailModel(def: ResourceDef, entity: Entity): DetailModel {
   const fields = allFields(def.sections)
   const skip = new Set([def.card.title, def.card.subtitle, def.card.summary])
@@ -142,9 +155,10 @@ export function buildDetailModel(def: ResourceDef, entity: Entity): DetailModel 
     heading,
     key: entryKey(def, entity.id),
     kindLabel: def.label,
-    subtitle: String(entity[def.card.subtitle]),
-    tags: tagsOf(entity),
+    subtitle: subtitleOf(def, entity),
+    tags: flavorTagsOf(def, entity),
     rows,
+    beans: def.hasBeans ? ((entity.beans as BeanRow[] | undefined) ?? []).map(toBeanDetail) : [],
     memos,
     links,
     photos: entity.photos,

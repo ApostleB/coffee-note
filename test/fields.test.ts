@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BEAN_SECTIONS, CAFE_SECTIONS, buildSchema, findField, fieldErrors, formValues, toColumn, toTagList } from '../src/fields.js'
+import { BEAN_SECTIONS, CAFE_BEAN_FIELDS, CAFE_SECTIONS, buildSchema, findField, fieldErrors, formValues, toColumn, toTagList } from '../src/fields.js'
 
 describe('toColumn', () => {
   it.each([
@@ -28,8 +28,8 @@ describe('toTagList', () => {
 })
 
 describe('품종 필드', () => {
-  it('원두·카페 모두 쉼표 구분 tags 타입', () => {
-    for (const sections of [BEAN_SECTIONS, CAFE_SECTIONS]) {
+  it('원두 노트와 카페 원두 모두 쉼표 구분 tags 타입', () => {
+    for (const sections of [BEAN_SECTIONS, [{ title: '원두', fields: CAFE_BEAN_FIELDS }]]) {
       expect(findField(sections, 'variety')).toMatchObject({ type: 'tags', label: '품종' })
     }
     expect(findField(BEAN_SECTIONS, 'variety')?.placeholder).toBe('게이샤, 버번')
@@ -78,4 +78,12 @@ describe('날짜 검증', () => {
   it('13월은 거부', () => expect(errorOf('2026-13-01')).toBe('존재하지 않는 날짜입니다'))
   it('4월 31일은 거부', () => expect(errorOf('2026-04-31')).toBe('존재하지 않는 날짜입니다'))
   it('12월 31일은 허용', () => expect(errorOf('2026-12-31')).toBeNull())
+})
+
+describe('카페 섹션', () => {
+  it('방문 필드만 갖는다 (원두 필드 없음)', () => {
+    const names = CAFE_SECTIONS.flatMap((s) => s.fields.map((f) => f.name))
+    expect(names).toEqual(['cafeName', 'visitedAt', 'rating', 'address', 'mapUrl', 'moodMemo', 'memo'])
+    expect(findField(CAFE_SECTIONS, 'cafeName')).toMatchObject({ required: true })
+  })
 })

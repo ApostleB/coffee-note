@@ -121,36 +121,55 @@ describeDb('관리자 작성·수정·삭제', () => {
     expect((await agent.post('/admin/beans/999').type('form').send({ name: 'a', shop: 'b' })).status).toBe(404)
   })
 
-  it('카페 폼은 카페명이 먼저이고 마신 원두·메뉴도 필수다', async () => {
+  it('카페 폼은 카페명이 먼저이고 원두 행(평탄한 bean_* 이름)이 있다', async () => {
     const form = await agent.get('/admin/cafe-visits/new').expect(200)
-    expect(form.text.indexOf('name="cafeName"')).toBeLessThan(form.text.indexOf('name="menu"'))
+    expect(form.text.indexOf('name="cafeName"')).toBeLessThan(form.text.indexOf('name="bean_name"'))
     expect(form.text).toContain('마신 원두·메뉴')
-    expect(form.text).toContain('placeholder="에티오피아 게이샤 필터"')
-    for (const body of [{ cafeName: '프릳츠' }, { menu: '게이샤 필터' }]) {
+    expect(form.text).not.toContain('name="menu"')
+  })
+
+  it('카페 후기는 카페명과 원두 1개 이상이 필수다', async () => {
+    for (const body of [{ cafeName: '프릳츠' }, { bean_name: '게이샤 필터' }, { cafeName: '프릳츠', bean_name: ' ', bean_country: ' ' }]) {
       await agent.post('/admin/cafe-visits').type('form').send(body).expect(400)
     }
+    const res = await agent.post('/admin/cafe-visits').type('form').send({ cafeName: '프릳츠', bean_name: ['a', ''], bean_price: ['', 'x'] })
+    expect(res.status).toBe(400)
+    expect(res.text).toContain('마신 원두·메뉴 항목은 필수입니다')
+    expect(res.text).toContain('숫자를 입력하세요')
     expect(await repos.cafe.list()).toHaveLength(0)
   })
 
   it('카페 후기를 만든다', async () => {
     const res = await agent.post('/admin/cafe-visits').type('form').send({
-      menu: '게이샤 필터',
       cafeName: '프릳츠',
       rating: '4',
       mapUrl: 'https://map.naver.com/p/fritz',
+      bean_name: ['게이샤 필터', '케냐'],
+      bean_country: ['파나마', '케냐'],
+      bean_is_decaf: ['false', 'true'],
     })
     expect(res.status).toBe(303)
     expect(res.headers.location).toBe('/admin/cafe-visits/1/edit?saved=1')
-    expect(await repos.cafe.get(1)).toMatchObject({ menu: '게이샤 필터', rating: 4 })
+    expect(await repos.cafe.get(1)).toMatchObject({ rating: 4, beans: [{ name: '게이샤 필터', isDecaf: false }, { name: '케냐', isDecaf: true }] })
     const form = await agent.get('/admin/cafe-visits/1/edit')
     expect(form.text).toContain('카페 후기 수정')
+    expect(form.text).toContain('value="케냐"')
     const list = await agent.get('/admin/cafe-visits').expect(200)
     expect(list.text).toMatch(/fw-semibold text-truncate">프릳츠<\/span>/)
-    expect(list.text).toMatch(/text-body-secondary text-truncate">게이샤 필터 ·/)
+    expect(list.text).toMatch(/text-body-secondary text-truncate">게이샤 필터 · 케냐 ·/)
     const detail = await request(app).get('/cafe-visits/1').expect(200)
     expect(detail.text).toContain('<title>프릳츠 · Coffee Note</title>')
     expect(detail.text).toMatch(/id="detail-title"[^>]*>프릳츠<\/h2>/)
     expect(form.text).toMatch(/<option value="4" selected>/)
+  })
+
+  it('카페 후기를 수정하면 원두를 새 입력으로 교체한다', async () => {
+    await agent.post('/admin/cafe-visits').type('form').send({ cafeName: '프릳츠', bean_name: ['가', '나'] }).expect(303)
+    const res = await agent.post('/admin/cafe-visits/1').type('form').send({ cafeName: '프릳츠', bean_name: ['다'] })
+    expect(res.status).toBe(303)
+    expect((await repos.cafe.get(1))?.beans?.map((b) => b.name)).toEqual(['다'])
+    await agent.post('/admin/cafe-visits/1').type('form').send({ cafeName: '프릳츠' }).expect(400)
+    expect((await repos.cafe.get(1))?.beans?.map((b) => b.name)).toEqual(['다'])
   })
 
   it('로그인하지 않으면 저장할 수 없다', async () => {
@@ -221,13 +240,14 @@ describeDb('관리자 작성·수정·삭제', () => {
 
     it('카페 후기도 복사한다', async () => {
       const src = await repos.cafe.create(
-        prepared(cafeVisitDef, { menu: '게이샤 필터', cafeName: '프릳츠', rating: '4', variety: '게이샤', flavorTags: '꽃' }),
+        prepared(cafeVisitDef, { cafeName: '프릳츠', rating: '4', bean_name: ['게이샤 필터', '케냐'], bean_variety: ['게이샤', ''], bean_flavor_tags: ['꽃', ''] }),
       )
       const res = await agent.post(`/admin/cafe-visits/${src.id}/copy`)
       expect(res.status).toBe(303)
       const copy = (await repos.cafe.list()).find((c) => c.id !== src.id)!
       expect(res.headers.location).toBe(`/admin/cafe-visits/${copy.id}/edit?copied=1`)
-      expect(copy).toMatchObject({ menu: '게이샤 필터', cafeName: '프릳츠 (복사)', rating: 4, variety: ['게이샤'], flavorTags: ['꽃'], photos: [] })
+      expect(copy).toMatchObject({ cafeName: '프릳츠 (복사)', rating: 4, photos: [] })
+      expect(copy.beans).toMatchObject([{ name: '게이샤 필터', variety: ['게이샤'], flavorTags: ['꽃'] }, { name: '케냐' }])
     })
 
     it('같은 이름이 있으면 (복사 2), (복사 3)으로 구분한다', async () => {

@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { initHome } from '../public/js/home.js'
 import { VIEWS_DIR } from '../src/paths.js'
 import { buildHomeModel } from '../src/view-models.js'
-import { beanEntity, cafeEntity } from './fixtures.js'
+import { beanEntity, cafeBean, cafeEntity } from './fixtures.js'
 
 const beans = [
   beanEntity({ id: 1, name: '에티오피아 구지', shop: '커피리브레', purchasedAt: '2026-10-01' }),
@@ -22,7 +22,7 @@ const beans = [
     isDecaf: true,
   }),
 ]
-const cafes = [cafeEntity({ id: 1, menu: '게이샤 필터', cafeName: '프릳츠', visitedAt: '2026-10-05' })]
+const cafes = [cafeEntity({ id: 1, cafeName: '프릳츠', visitedAt: '2026-10-05' })]
 
 let show: ReturnType<typeof vi.fn>
 let fetchMock: ReturnType<typeof vi.fn>
@@ -110,7 +110,7 @@ describe('홈 화면 스크립트', () => {
 
   it('카페명 제목과 메뉴 부제목을 표시하고 카페명으로 필터링한다', async () => {
     document.body.innerHTML = await ejs.renderFile(path.join(VIEWS_DIR, 'home.ejs'), {
-      ...buildHomeModel(beans, [...cafes, cafeEntity({ id: 2, cafeName: '나무사이로', menu: '케냐 필터' })]),
+      ...buildHomeModel(beans, [...cafes, cafeEntity({ id: 2, cafeName: '나무사이로', beans: [cafeBean({ name: '케냐 필터' })] })]),
       assetVersion: 't', importMapJson: '{"imports":{}}', isAdmin: false,
     })
     initHome(document, { bootstrap: { Modal: { getOrCreateInstance: () => ({ show }) } }, fetch: fetchMock as unknown as typeof fetch })

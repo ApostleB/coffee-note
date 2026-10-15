@@ -1,3 +1,4 @@
+import { validateBeans, type BeanRow } from './cafe-beans.js'
 import { allFields, BEAN_SECTIONS, buildSchema, CAFE_SECTIONS, fieldErrors, toColumn, type Section } from './fields.js'
 
 export type Kind = 'bean' | 'cafe'
@@ -21,6 +22,8 @@ export type Entity = Record<string, unknown> & {
   updatedAt: Date
   photos: PhotoDto[]
   thumbnailUrl: string | null
+  /** 카페 후기만: position 순서의 원두 행 */
+  beans?: BeanRow[]
 }
 
 export type ResourceDef = {
@@ -35,7 +38,9 @@ export type ResourceDef = {
   photoFk: 'bean_id' | 'cafe_visit_id'
   sections: Section[]
   schema: ReturnType<typeof buildSchema>
-  /** 카드·검색 인덱스에 쓰는 필드 이름 */
+  /** 원두 행(cafe_visit_beans)을 딸고 있는 종류. 엔티티에 `beans`가 붙는다 */
+  hasBeans: boolean
+  /** 카드·검색 인덱스에 쓰는 필드 이름. 원두를 딸린 종류의 subtitle은 원두 이름 목록에서 파생한다 */
   card: { title: string; subtitle: string; date: string; score: string; scoreMax: number; summary?: string; meta: string[] }
   /** 폼에는 없고 서버가 계산해 저장하는 필드 */
   derived: string[]
@@ -56,6 +61,7 @@ export const beanDef: ResourceDef = {
   photoFk: 'bean_id',
   sections: BEAN_SECTIONS,
   schema: buildSchema(BEAN_SECTIONS),
+  hasBeans: false,
   card: {
     title: 'name',
     subtitle: 'shop',
@@ -78,7 +84,8 @@ export const cafeVisitDef: ResourceDef = {
   photoFk: 'cafe_visit_id',
   sections: CAFE_SECTIONS,
   schema: buildSchema(CAFE_SECTIONS),
-  card: { title: 'cafeName', subtitle: 'menu', date: 'visitedAt', score: 'rating', scoreMax: 5, meta: ['visitedAt', 'brewMethod'] },
+  hasBeans: true,
+  card: { title: 'cafeName', subtitle: 'beans', date: 'visitedAt', score: 'rating', scoreMax: 5, meta: ['visitedAt'] },
   derived: [],
   derive: () => ({}),
 }
@@ -94,8 +101,11 @@ export type Prepared = { ok: true; data: Record<string, unknown> } | { ok: false
 /** 폼 본문을 검증·변환하고 계산 필드를 붙인다 */
 export function prepare(def: ResourceDef, body: unknown): Prepared {
   const result = def.schema.safeParse(body ?? {})
-  if (!result.success) return { ok: false, errors: fieldErrors(result.error) }
-  return { ok: true, data: { ...result.data, ...def.derive(result.data) } }
+  const errors = result.success ? {} : fieldErrors(result.error)
+  const beans = def.hasBeans ? validateBeans(body) : null
+  if (beans && !beans.ok) Object.assign(errors, beans.errors)
+  if (!result.success || (beans && !beans.ok)) return { ok: false, errors }
+  return { ok: true, data: { ...result.data, ...def.derive(result.data), ...(beans?.ok ? { beans: beans.beans } : {}) } }
 }
 
 export function toPhotoDto(row: PhotoRow): PhotoDto {
@@ -108,13 +118,14 @@ export function toPhotoDto(row: PhotoRow): PhotoDto {
   }
 }
 
-export function toEntity(def: ResourceDef, row: Record<string, unknown>, photos: PhotoRow[]): Entity {
+export function toEntity(def: ResourceDef, row: Record<string, unknown>, photos: PhotoRow[], beans: BeanRow[] = []): Entity {
   const fields: Record<string, unknown> = {}
   for (const [key, column] of columnsOf(def)) fields[key] = row[column] ?? null
   const photoDtos = photos.map(toPhotoDto)
   const thumbnail = photoDtos.find((p) => p.isThumbnail) ?? photoDtos[0]
   return {
     ...fields,
+    ...(def.hasBeans ? { beans } : {}),
     id: row.id as number,
     createdAt: row.created_at as Date,
     updatedAt: row.updated_at as Date,

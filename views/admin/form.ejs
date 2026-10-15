@@ -34,6 +34,21 @@
         </div>
       </fieldset>
     <% }) %>
+    <% if (def.hasBeans) { %>
+      <fieldset class="card" id="beans">
+        <div class="card-body">
+          <legend class="h6 mb-3">원두</legend>
+          <% if (errors.beans) { %><div class="text-danger small mb-2"><%= errors.beans %></div><% } %>
+          <% beanRows.forEach((row, i) => { %>
+            <div class="row g-3<%= i > 0 ? ' border-top pt-3 mt-0' : '' %>" data-bean-row>
+              <% beanFields.forEach((field) => { %>
+                <%- include('../partials/field', { field, value: row[field.name], error: errors[`beans.${i}.${field.name}`], inputName: beanInputKey(field.name), inputId: `f-bean-${i}-${field.name}`, boolAsSelect: true }) %>
+              <% }) %>
+            </div>
+          <% }) %>
+        </div>
+      </fieldset>
+    <% } %>
     <div class="coffee-form-actions sticky-bottom bg-body border-top py-2">
       <a class="btn btn-outline-secondary" href="<%= listHref %>">목록</a>
       <button class="btn btn-primary px-4" type="submit">저장</button>

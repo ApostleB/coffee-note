@@ -74,21 +74,8 @@ export const CAFE_SECTIONS: Section[] = [
     title: '기본 정보',
     fields: [
       { name: 'cafeName', label: '카페명', type: 'text', required: true },
-      { name: 'menu', label: '마신 원두·메뉴', type: 'text', required: true, placeholder: '에티오피아 게이샤 필터' },
       { name: 'visitedAt', label: '방문일', type: 'date' },
       { name: 'rating', label: '별점', type: 'rating' },
-      { name: 'price', label: '가격', type: 'int', unit: '원' },
-      { name: 'brewMethod', label: '추출방식', type: 'text', max: 100, placeholder: '필터, 에스프레소, 라떼' },
-    ],
-  },
-  {
-    title: '원두',
-    fields: [
-      { name: 'country', label: '산지 국가', type: 'text', max: 100 },
-      { name: 'variety', label: '품종', type: 'tags', placeholder: '게이샤, 버번' },
-      { name: 'process', label: '가공', type: 'text', max: 100 },
-      { name: 'isDecaf', label: '디카페인', type: 'bool' },
-      { name: 'flavorTags', label: '향미 노트', type: 'tags', wide: true, placeholder: '꽃, 시트러스' },
     ],
   },
   {
@@ -103,6 +90,20 @@ export const CAFE_SECTIONS: Section[] = [
     title: '후기',
     fields: [{ name: 'memo', label: '메모', type: 'textarea', wide: true }],
   },
+]
+
+/** 카페 후기 한 건에 딸린 원두(마신 메뉴) 한 행의 필드 */
+export const CAFE_BEAN_FIELDS: FieldDef[] = [
+  { name: 'name', label: '마신 원두·메뉴', type: 'text', required: true, placeholder: '에티오피아 게이샤 필터' },
+  { name: 'country', label: '산지 국가', type: 'text', max: 100 },
+  { name: 'variety', label: '품종', type: 'tags', placeholder: '게이샤, 버번' },
+  { name: 'process', label: '가공', type: 'text', max: 100 },
+  { name: 'brewMethod', label: '추출방식', type: 'text', max: 100, placeholder: '필터, 에스프레소, 라떼' },
+  { name: 'isDecaf', label: '디카페인', type: 'bool' },
+  { name: 'flavorTags', label: '향미 노트', type: 'tags', wide: true, placeholder: '꽃, 시트러스' },
+  { name: 'price', label: '가격', type: 'int', unit: '원' },
+  { name: 'rating', label: '별점', type: 'rating' },
+  { name: 'memo', label: '메모', type: 'textarea', wide: true },
 ]
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/

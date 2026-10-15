@@ -35,7 +35,7 @@ describeDb('공개 페이지', () => {
     await repos.bean.create(
       prepared(beanDef, { name: '에티오피아 구지', shop: '커피리브레', price: '18000', flavorTags: '베리, 자스민' }),
     )
-    await repos.cafe.create(prepared(cafeVisitDef, { menu: '게이샤 필터', cafeName: '프릳츠', rating: '4' }))
+    await repos.cafe.create(prepared(cafeVisitDef, { bean_name: '게이샤 필터', cafeName: '프릳츠', rating: '4' }))
   })
 
   it('홈은 모든 카드와 검색 인덱스를 그린다', async () => {
