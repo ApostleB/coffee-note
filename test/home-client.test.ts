@@ -108,6 +108,23 @@ describe('홈 화면 스크립트', () => {
     expect($<HTMLOptionElement>('option[value="roasted"]').disabled).toBe(true)
   })
 
+  it('카페명 제목과 메뉴 부제목을 표시하고 카페명으로 필터링한다', async () => {
+    document.body.innerHTML = await ejs.renderFile(path.join(VIEWS_DIR, 'home.ejs'), {
+      ...buildHomeModel(beans, [...cafes, cafeEntity({ id: 2, cafeName: '나무사이로', menu: '케냐 필터' })]),
+      assetVersion: 't', importMapJson: '{"imports":{}}', isAdmin: false,
+    })
+    initHome(document, { bootstrap: { Modal: { getOrCreateInstance: () => ({ show }) } }, fetch: fetchMock as unknown as typeof fetch })
+    $('[data-scope-tab="cafe"]').click()
+    expect($('[data-key="cafe-1"] .card-title').textContent?.trim()).toBe('프릳츠')
+    expect($('[data-key="cafe-1"] .card-subtitle').textContent).toBe('게이샤 필터')
+    expect([...$<HTMLSelectElement>('select[name="shop"]').options].map(o => o.value)).toEqual(['', '나무사이로', '프릳츠'])
+    setControl('shop', '프릳츠')
+    expect(visibleKeys()).toEqual(['cafe-1'])
+    setControl('shop', '')
+    setControl('sort', 'name')
+    expect(visibleKeys()).toEqual(['cafe-2', 'cafe-1'])
+  })
+
   it('로스팅순에서 카페로 가면 최신순으로 돌아간다', () => {
     setControl('sort', 'roasted')
     $('[data-scope-tab="cafe"]').click()

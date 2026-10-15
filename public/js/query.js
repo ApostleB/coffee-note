@@ -82,7 +82,7 @@ export function applyQuery(entries, query) {
     .filter(
       (entry) =>
         (query.scope === 'all' || entry.kind === query.scope) &&
-        (!query.shop || entry.subtitle === query.shop) &&
+        (!query.shop || entry.shop === query.shop) &&
         (!query.decafOnly || entry.isDecaf) &&
         (activeFilters.length === 0 || (entry.kind === 'bean' && activeFilters.every((key) =>
           key === 'flavorTag' ? entry.flavorTags.includes(query.beanFilters[key])
@@ -117,7 +117,7 @@ export function updateQuery(query, patch) {
  * @returns {string[]}
  */
 export function shopOptions(entries, scope) {
-  const shops = new Set(entries.filter((e) => scope === 'all' || e.kind === scope).map((e) => e.subtitle))
+  const shops = new Set(entries.filter((e) => scope === 'all' || e.kind === scope).map((e) => e.shop))
   return [...shops].sort((a, b) => collator.compare(a, b))
 }
 

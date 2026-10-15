@@ -121,6 +121,17 @@ describeDb('관리자 작성·수정·삭제', () => {
     expect((await agent.post('/admin/beans/999').type('form').send({ name: 'a', shop: 'b' })).status).toBe(404)
   })
 
+  it('카페 폼은 카페명이 먼저이고 마신 원두·메뉴도 필수다', async () => {
+    const form = await agent.get('/admin/cafe-visits/new').expect(200)
+    expect(form.text.indexOf('name="cafeName"')).toBeLessThan(form.text.indexOf('name="menu"'))
+    expect(form.text).toContain('마신 원두·메뉴')
+    expect(form.text).toContain('placeholder="에티오피아 게이샤 필터"')
+    for (const body of [{ cafeName: '프릳츠' }, { menu: '게이샤 필터' }]) {
+      await agent.post('/admin/cafe-visits').type('form').send(body).expect(400)
+    }
+    expect(await repos.cafe.list()).toHaveLength(0)
+  })
+
   it('카페 후기를 만든다', async () => {
     const res = await agent.post('/admin/cafe-visits').type('form').send({
       menu: '게이샤 필터',
@@ -133,6 +144,12 @@ describeDb('관리자 작성·수정·삭제', () => {
     expect(await repos.cafe.get(1)).toMatchObject({ menu: '게이샤 필터', rating: 4 })
     const form = await agent.get('/admin/cafe-visits/1/edit')
     expect(form.text).toContain('카페 후기 수정')
+    const list = await agent.get('/admin/cafe-visits').expect(200)
+    expect(list.text).toMatch(/fw-semibold text-truncate">프릳츠<\/span>/)
+    expect(list.text).toMatch(/text-body-secondary text-truncate">게이샤 필터 ·/)
+    const detail = await request(app).get('/cafe-visits/1').expect(200)
+    expect(detail.text).toContain('<title>프릳츠 · Coffee Note</title>')
+    expect(detail.text).toMatch(/id="detail-title"[^>]*>프릳츠<\/h2>/)
     expect(form.text).toMatch(/<option value="4" selected>/)
   })
 
@@ -210,7 +227,7 @@ describeDb('관리자 작성·수정·삭제', () => {
       expect(res.status).toBe(303)
       const copy = (await repos.cafe.list()).find((c) => c.id !== src.id)!
       expect(res.headers.location).toBe(`/admin/cafe-visits/${copy.id}/edit?copied=1`)
-      expect(copy).toMatchObject({ menu: '게이샤 필터 (복사)', cafeName: '프릳츠', rating: 4, variety: ['게이샤'], flavorTags: ['꽃'], photos: [] })
+      expect(copy).toMatchObject({ menu: '게이샤 필터', cafeName: '프릳츠 (복사)', rating: 4, variety: ['게이샤'], flavorTags: ['꽃'], photos: [] })
     })
 
     it('같은 이름이 있으면 (복사 2), (복사 3)으로 구분한다', async () => {

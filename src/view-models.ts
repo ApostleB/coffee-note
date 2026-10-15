@@ -88,6 +88,7 @@ export function buildHomeModel(beans: Entity[], cafes: Entity[], today: string =
     ...beans.map((entity): [ResourceDef, Entity] => [beanDef, entity]),
     ...cafes.map((entity): [ResourceDef, Entity] => [cafeVisitDef, entity]),
   ]
+  const entries = pairs.map(([def, entity]) => toIndexEntry(def, entity))
   return {
     // public/js/query.js의 beanFilterOptions와 같은 원두 한정·고유값 정렬 규칙.
     beanOptions: {
@@ -100,9 +101,9 @@ export function buildHomeModel(beans: Entity[], cafes: Entity[], today: string =
     },
     title: '',
     cards: pairs.map(([def, entity]) => toCardModel(def, entity, today)),
-    indexJson: jsonForScript(pairs.map(([def, entity]) => toIndexEntry(def, entity))),
+    indexJson: jsonForScript(entries),
     counts: { bean: beans.length, cafe: cafes.length },
-    shops: [...new Set(beans.map((bean) => String(bean.shop)))].sort((a, b) => collator.compare(a, b)),
+    shops: [...new Set(entries.filter((entry) => entry.kind === DEFAULT_SCOPE).map((entry) => entry.shop))].sort(collator.compare),
   }
 }
 

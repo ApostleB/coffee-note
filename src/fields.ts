@@ -73,8 +73,8 @@ export const CAFE_SECTIONS: Section[] = [
   {
     title: '기본 정보',
     fields: [
-      { name: 'menu', label: '메뉴·원두명', type: 'text', required: true, placeholder: '게이샤 필터' },
       { name: 'cafeName', label: '카페명', type: 'text', required: true },
+      { name: 'menu', label: '마신 원두·메뉴', type: 'text', required: true, placeholder: '에티오피아 게이샤 필터' },
       { name: 'visitedAt', label: '방문일', type: 'date' },
       { name: 'rating', label: '별점', type: 'rating' },
       { name: 'price', label: '가격', type: 'int', unit: '원' },

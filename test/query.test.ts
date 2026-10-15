@@ -7,7 +7,8 @@ function entry(key: string, overrides: Partial<IndexEntry> = {}): IndexEntry {
     key,
     kind: 'bean',
     title: key,
-    subtitle: '가게',
+    subtitle: '부제목',
+    shop: '가게',
     date: '2026-10-01',
     createdAt: '2026-10-01T00:00:00.000Z',
     score: null,
@@ -34,9 +35,9 @@ describe('normalize', () => {
 describe('applyQuery 필터', () => {
   const entries = [
     entry('a', { searchText: '에티오피아 구지 베리 berry', date: '2026-10-03' }),
-    entry('b', { searchText: '케냐 aa 베리', date: '2026-10-02', subtitle: '나무사이로', isDecaf: true }),
+    entry('b', { searchText: '케냐 aa 베리', date: '2026-10-02', shop: '나무사이로', isDecaf: true }),
     entry('c', { searchText: '콜롬비아', date: '2026-10-01' }),
-    entry('d', { kind: 'cafe', searchText: '게이샤 베리', date: '2026-10-04', subtitle: '프릳츠' }),
+    entry('d', { kind: 'cafe', searchText: '게이샤 베리', date: '2026-10-04', title: '프릳츠', subtitle: '게이샤 필터', shop: '프릳츠' }),
   ]
 
   it('기본은 원두만', () => {
@@ -58,6 +59,11 @@ describe('applyQuery 필터', () => {
   it('가게, 디카페인', () => {
     expect(keys(applyQuery(entries, query({ shop: '나무사이로' })))).toEqual(['b'])
     expect(keys(applyQuery(entries, query({ decafOnly: true })))).toEqual(['b'])
+  })
+
+  it('카페 가게 필터는 메뉴가 아닌 카페명이다', () => {
+    expect(keys(applyQuery(entries, query({ scope: 'cafe', shop: '프릳츠' })))).toEqual(['d'])
+    expect(applyQuery(entries, query({ scope: 'cafe', shop: '게이샤 필터' }))).toEqual([])
   })
 
   it('원본 배열을 바꾸지 않는다', () => {
@@ -136,10 +142,10 @@ describe('updateQuery', () => {
 describe('shopOptions', () => {
   it('범위 안의 가게 이름을 중복 없이 가나다순으로', () => {
     const entries = [
-      entry('a', { subtitle: '커피리브레' }),
-      entry('b', { subtitle: '나무사이로' }),
-      entry('c', { subtitle: '커피리브레' }),
-      entry('d', { kind: 'cafe', subtitle: '프릳츠' }),
+      entry('a', { shop: '커피리브레' }),
+      entry('b', { shop: '나무사이로' }),
+      entry('c', { shop: '커피리브레' }),
+      entry('d', { kind: 'cafe', title: '프릳츠', subtitle: '게이샤 필터', shop: '프릳츠' }),
     ]
     expect(shopOptions(entries, 'bean')).toEqual(['나무사이로', '커피리브레'])
     expect(shopOptions(entries, 'cafe')).toEqual(['프릳츠'])

@@ -38,6 +38,8 @@ describe('toCardModel', () => {
   it('카페 카드는 기본 범위가 아니라 처음에 숨긴다', () => {
     expect(toCardModel(cafeVisitDef, cafeEntity(), TODAY)).toMatchObject({
       key: 'cafe-1',
+      title: '프릳츠',
+      subtitle: '게이샤 필터',
       kindLabel: '카페',
       href: '/cafe-visits/1',
       meta: '2026.10.05 · 필터',
@@ -76,6 +78,7 @@ describe('buildHomeModel', () => {
     expect(model.shops).toEqual(['나무사이로', '커피리브레'])
     expect(model.indexJson).not.toContain('</script>')
     expect(JSON.parse(model.indexJson)).toHaveLength(4)
+    expect(JSON.parse(model.indexJson)[3]).toMatchObject({ title: '프릳츠', subtitle: '게이샤 필터', shop: '프릳츠' })
   })
 })
 
@@ -128,6 +131,7 @@ describe('buildDetailModel', () => {
   it('카페 상세', () => {
     const model = buildDetailModel(cafeVisitDef, cafeEntity())
     expect(model.kindLabel).toBe('카페 후기')
+    expect(model).toMatchObject({ title: '프릳츠', heading: '프릳츠', subtitle: '게이샤 필터' })
     expect(model.rows).toEqual(
       expect.arrayContaining([
         { label: '방문일', value: '2026.10.05' },

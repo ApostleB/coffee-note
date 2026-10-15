@@ -78,7 +78,7 @@ export const cafeVisitDef: ResourceDef = {
   photoFk: 'cafe_visit_id',
   sections: CAFE_SECTIONS,
   schema: buildSchema(CAFE_SECTIONS),
-  card: { title: 'menu', subtitle: 'cafeName', date: 'visitedAt', score: 'rating', scoreMax: 5, meta: ['visitedAt', 'brewMethod'] },
+  card: { title: 'cafeName', subtitle: 'menu', date: 'visitedAt', score: 'rating', scoreMax: 5, meta: ['visitedAt', 'brewMethod'] },
   derived: [],
   derive: () => ({}),
 }

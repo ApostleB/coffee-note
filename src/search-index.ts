@@ -7,6 +7,8 @@ export type IndexEntry = {
   kind: Kind
   title: string
   subtitle: string
+  /** 가게 필터용 (원두: 판매처, 카페: 카페명) */
+  shop: string
   /** 정렬용 날짜 (원두: 구매일, 카페: 방문일, 없으면 생성일) */
   date: string
   createdAt: string
@@ -52,6 +54,7 @@ export function toIndexEntry(def: ResourceDef, entity: Entity): IndexEntry {
     kind: def.kind,
     title: String(entity[def.card.title]),
     subtitle: String(entity[def.card.subtitle]),
+    shop: String(entity[def.kind === 'bean' ? 'shop' : 'cafeName']),
     date: textOrNull(entity[def.card.date]) ?? entity.createdAt.toISOString().slice(0, 10),
     createdAt: entity.createdAt.toISOString(),
     score: score === null ? null : score / def.card.scoreMax,
