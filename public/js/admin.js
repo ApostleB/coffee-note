@@ -112,3 +112,108 @@ export function initBeanRows(root) {
   list.addEventListener('change', sync)
   sync()
 }
+
+/**
+ * 큰 사진만 축소한다. 지원하지 않는 환경이나 변환 실패 시 원본을 보낸다.
+ * @param {File} file
+ * @returns {Promise<File>}
+ */
+export async function resizePhoto(file) {
+  if (typeof createImageBitmap !== 'function') return file
+  /** @type {ImageBitmap | undefined} */
+  let bitmap
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
+    const longest = Math.max(bitmap.width, bitmap.height)
+    if (longest <= 2400 && file.size <= 4 * 1024 * 1024) return file
+    const canvas = document.createElement('canvas')
+    const scale = Math.min(1, 2400 / longest)
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+    const context = canvas.getContext('2d')
+    if (!context) return file
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9))
+    if (!blob || blob.type !== 'image/jpeg' || blob.size >= file.size) return file
+    return new File([blob], file.name.replace(/\.[^.]*$/, '') + '.jpg', { type: 'image/jpeg', lastModified: file.lastModified })
+  } catch {
+    return file
+  } finally {
+    bitmap?.close()
+  }
+}
+
+/**
+ * 선택한 사진을 한 장씩 보내고 실패한 파일을 안내한다.
+ * @param {ParentNode} root
+ * @param {{fetch?: typeof fetch, resize?: (file: File) => Promise<File>, reload?: () => void}} [deps]
+ */
+export function initPhotoUpload(root, deps = {}) {
+  const form = /** @type {HTMLFormElement | null} */ (root.querySelector('[data-photo-upload]'))
+  const input = /** @type {HTMLInputElement | null | undefined} */ (form?.querySelector('input[name="photos"]'))
+  const submit = /** @type {HTMLButtonElement | null | undefined} */ (form?.querySelector('button[type="submit"]'))
+  const progress = root.querySelector('[data-photo-progress]')
+  const errors = /** @type {HTMLElement | null} */ (root.querySelector('[data-photo-errors]'))
+  if (!form || !input || !submit || !progress || !errors) return
+  const send = deps.fetch ?? ((...args) => fetch(...args))
+  const resize = deps.resize ?? resizePhoto
+  const reload = deps.reload ?? (() => location.reload())
+  submit.hidden = true
+  const help = /** @type {HTMLElement | null} */ (root.querySelector('[data-photo-help]'))
+  if (help) help.hidden = false
+  // Enter 키로 기존 일괄 업로드가 중복 실행되지 않게 한다.
+  form.addEventListener('submit', event => event.preventDefault())
+  input.addEventListener('change', async () => {
+    if (input.disabled) return
+    const files = [...(input.files ?? [])]
+    if (files.length === 0) return
+    input.disabled = true
+    errors.replaceChildren()
+    errors.hidden = true
+    const failures = document.createElement('ul')
+    let succeeded = 0
+    for (const [index, file] of files.entries()) {
+      progress.textContent = `사진 올리는 중 ${index + 1}/${files.length}`
+      let error = '업로드하지 못했습니다'
+      try {
+        const body = new FormData()
+        body.append('photos', await resize(file))
+        const response = await send(form.action, { method: 'POST', body, headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+        if (response.redirected && new URL(response.url, location.href).pathname === '/admin/login') {
+          error = '로그인이 만료되었습니다. 다시 로그인하세요.'
+        } else {
+          const result = await response.json()
+          if (response.ok && result?.ok === true) {
+            succeeded += 1
+            continue
+          }
+          if (typeof result?.error === 'string') error = result.error
+        }
+      } catch {
+        // 네트워크 오류나 HTML 응답도 해당 파일만 실패 처리한다.
+      }
+      const item = document.createElement('li')
+      item.textContent = `${file.name}: ${error}`
+      failures.append(item)
+    }
+    input.value = ''
+    input.disabled = false
+    progress.textContent = '사진 업로드가 끝났습니다.'
+    if (failures.childElementCount === 0) {
+      reload()
+      return
+    }
+    errors.append(failures)
+    if (succeeded > 0) {
+      const summary = document.createElement('p')
+      summary.textContent = `${succeeded}장은 올라갔습니다`
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = 'btn btn-outline-secondary'
+      button.textContent = '새로고침'
+      button.addEventListener('click', reload)
+      errors.append(summary, button)
+    }
+    errors.hidden = false
+  })
+}

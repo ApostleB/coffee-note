@@ -85,6 +85,34 @@ describeDb('관리자 사진', () => {
     expect(edit.text).toContain('썸네일')
   })
 
+  it('JSON 요청은 저장 후 201을 반환한다', async () => {
+    const res = await agent.post('/admin/beans/1/photos').set('Accept', 'application/json')
+      .attach('photos', await png('#c08040'), { filename: 'a.png', contentType: 'image/png' })
+    expect(res.status).toBe(201)
+    expect(res.body).toEqual({ ok: true })
+    const photos = (await repos.bean.get(1))!.photos
+    expect(photos).toHaveLength(1)
+    expect(fileExists(photos[0].url)).toBe(true)
+  })
+
+  it('JSON 요청의 지원하지 않는 형식과 빈 파일은 한국어 400 오류다', async () => {
+    const invalid = await agent.post('/admin/beans/1/photos').set('Accept', 'application/json')
+      .attach('photos', Buffer.from('hello'), { filename: 'a.txt', contentType: 'text/plain' })
+    expect(invalid.status).toBe(400)
+    expect(invalid.body).toEqual({ ok: false, error: 'JPG, PNG, WebP, AVIF 이미지만 올릴 수 있습니다.' })
+    const empty = await agent.post('/admin/beans/1/photos').set('Accept', 'application/json').field('note', 'empty')
+    expect(empty.status).toBe(400)
+    expect(empty.body).toEqual({ ok: false, error: '올릴 사진을 선택하세요.' })
+    expect((await repos.bean.get(1))!.photos).toHaveLength(0)
+  })
+
+  it('없는 글의 JSON 업로드는 404 JSON이다', async () => {
+    const res = await agent.post('/admin/beans/999/photos').set('Accept', 'application/json')
+      .attach('photos', await png('#c08040'), { filename: 'a.png', contentType: 'image/png' })
+    expect(res.status).toBe(404)
+    expect(res.body).toEqual({ ok: false, error: '기록을 찾을 수 없습니다' })
+  })
+
   it('썸네일은 한 장만 지정된다', async () => {
     await upload('/admin/beans/1/photos', await png('#c08040'), await png('#4080c0'))
     const [first, second] = (await repos.bean.get(1))!.photos

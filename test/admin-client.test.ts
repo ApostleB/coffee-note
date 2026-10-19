@@ -181,3 +181,95 @@ describe('카페 원두 동적 폼', () => {
     expect(legendIds).toEqual(['bean-legend-0', 'bean-legend-1'])
   })
 })
+
+describe('사진 자동 업로드', () => {
+  function photoForm() {
+    const root = mount(`<form data-photo-upload action="/admin/beans/1/photos">
+      <input type="file" name="photos" multiple><button type="submit">업로드</button>
+      <p data-photo-progress aria-live="polite"></p>
+      <div data-photo-errors class="alert alert-danger" hidden></div>
+    </form>`)
+    const input = root.querySelector<HTMLInputElement>('input')!
+    const select = (names = ['a.png', 'b.png', 'c.png']) => {
+      Object.defineProperty(input, 'files', { configurable: true, value: names.map(name => new File(['image'], name, { type: 'image/png' })) })
+      input.dispatchEvent(new Event('change'))
+    }
+    return { root, input, select }
+  }
+  const ok = () => new Response(JSON.stringify({ ok: true }), { status: 201, headers: { 'Content-Type': 'application/json' } })
+
+  it('세 장을 한 장씩 순차 전송하고 진행 상태와 입력 잠금을 갱신한 뒤 새로고침한다', async () => {
+    const { root, input, select } = photoForm()
+    const pending: ((response: Response) => void)[] = []
+    const fetch = vi.fn<typeof globalThis.fetch>(() => new Promise(resolve => pending.push(resolve)))
+    const resize = vi.fn(async (file: File) => new File(['small'], file.name.replace('.png', '.jpg'), { type: 'image/jpeg' }))
+    const reload = vi.fn()
+    admin.initPhotoUpload(root, { fetch, resize, reload })
+    expect(root.querySelector<HTMLButtonElement>('button')!.hidden).toBe(true)
+    select()
+    expect(input.disabled).toBe(true)
+    for (let i = 0; i < 3; i++) {
+      await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(i + 1))
+      expect(root.querySelector('[data-photo-progress]')!.textContent).toContain(`${i + 1}/3`)
+      const [url, options] = fetch.mock.calls[i]
+      expect(url).toContain('/admin/beans/1/photos')
+      expect(options).toMatchObject({ method: 'POST', headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+      const files = (options!.body as FormData).getAll('photos') as File[]
+      expect(files).toHaveLength(1)
+      expect(files[0].name).toBe(['a.jpg', 'b.jpg', 'c.jpg'][i])
+      expect(reload).not.toHaveBeenCalled()
+      pending[i](ok())
+    }
+    await vi.waitFor(() => expect(reload).toHaveBeenCalledOnce())
+    expect(input.disabled).toBe(false)
+    expect(input.value).toBe('')
+  })
+
+  it('중간 400 오류 이후에도 계속하고 실패 파일과 서버 메시지, 성공 수, 새로고침을 보여준다', async () => {
+    const { root, input, select } = photoForm()
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(ok())
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: false, error: '<지원 불가>' }), { status: 400 }))
+      .mockResolvedValueOnce(ok())
+    const reload = vi.fn()
+    admin.initPhotoUpload(root, { fetch, resize: async f => f, reload })
+    select()
+    await vi.waitFor(() => expect(input.disabled).toBe(false))
+    expect(fetch).toHaveBeenCalledTimes(3)
+    expect(reload).not.toHaveBeenCalled()
+    const errors = root.querySelector<HTMLElement>('[data-photo-errors]')!
+    expect(errors.hidden).toBe(false)
+    expect(errors.textContent).toContain('b.png')
+    expect(errors.textContent).toContain('<지원 불가>')
+    expect(errors.textContent).toContain('2장은 올라갔습니다')
+    expect(errors.querySelector('지원')).toBeNull()
+    errors.querySelector<HTMLButtonElement>('button')!.click()
+    expect(reload).toHaveBeenCalledOnce()
+  })
+
+  it('빈 선택은 전송하지 않고 HTML 응답과 네트워크 오류, 로그인 만료는 실패로 표시한다', async () => {
+    const { root, input, select } = photoForm()
+    const login = new Response('<html>login</html>')
+    Object.defineProperties(login, { redirected: { value: true }, url: { value: 'http://localhost/admin/login' } })
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(new Response('<html>Error</html>'))
+      .mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(login)
+    const reload = vi.fn()
+    admin.initPhotoUpload(root, { fetch, resize: async f => f, reload })
+    select([])
+    expect(fetch).not.toHaveBeenCalled()
+    select()
+    await vi.waitFor(() => expect(input.disabled).toBe(false))
+    expect(fetch).toHaveBeenCalledTimes(3)
+    expect(reload).not.toHaveBeenCalled()
+    expect(root.textContent).toContain('업로드하지 못했습니다')
+    expect(root.textContent).toContain('다시 로그인하세요')
+    expect(root.querySelector('[data-photo-errors] button')).toBeNull()
+  })
+
+  it('createImageBitmap이 없으면 원본을 반환한다', async () => {
+    vi.stubGlobal('createImageBitmap', undefined)
+    try {
+      const file = new File(['image'], 'a.png', { type: 'image/png' })
+      expect(await admin.resizePhoto(file)).toBe(file)
+    } finally { vi.unstubAllGlobals() }
+  })
+})

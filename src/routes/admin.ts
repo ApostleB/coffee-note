@@ -188,19 +188,31 @@ export function adminRouter({ config, repos, photos, loginGuard }: AdminDeps): R
     })
 
     router.post(`/${def.path}/:id/photos`, async (req, res) => {
-      const id = parseId(req.params.id)
-      const entity = await repo.get(id)
-      if (!entity) throw recordNotFound()
+      const wantsJson = req.accepts(['html', 'json']) === 'json'
+      let entity: Entity | null = null
       try {
+        const id = parseId(req.params.id)
+        entity = await repo.get(id)
+        if (!entity) throw recordNotFound()
         await photos.add(def, id, await receivePhotos(req, res))
-      } catch (err) {
-        if (err instanceof HttpError && err.status === 400) {
-          renderForm(res, def, { entity, status: 400, photoError: err.message })
+        if (wantsJson) {
+          res.status(201).json({ ok: true })
           return
+        }
+        res.redirect(303, `${base}/${id}/edit#photos`)
+      } catch (err) {
+        if (err instanceof HttpError) {
+          if (wantsJson && (err.status === 400 || err.status === 404)) {
+            res.status(err.status).json({ ok: false, error: err.message })
+            return
+          }
+          if (err.status === 400 && entity) {
+            renderForm(res, def, { entity, status: 400, photoError: err.message })
+            return
+          }
         }
         throw err
       }
-      res.redirect(303, `${base}/${id}/edit#photos`)
     })
   }
 
