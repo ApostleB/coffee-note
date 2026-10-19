@@ -122,23 +122,28 @@ export async function resizePhoto(file) {
   if (typeof createImageBitmap !== 'function') return file
   /** @type {ImageBitmap | undefined} */
   let bitmap
+  /** @type {HTMLCanvasElement | undefined} */
+  let canvas
   try {
     bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
     const longest = Math.max(bitmap.width, bitmap.height)
     if (longest <= 2400 && file.size <= 4 * 1024 * 1024) return file
-    const canvas = document.createElement('canvas')
+    canvas = document.createElement('canvas')
     const scale = Math.min(1, 2400 / longest)
     canvas.width = Math.max(1, Math.round(bitmap.width * scale))
     canvas.height = Math.max(1, Math.round(bitmap.height * scale))
     const context = canvas.getContext('2d')
     if (!context) return file
+    context.fillStyle = '#fff'
+    context.fillRect(0, 0, canvas.width, canvas.height)
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9))
+    const blob = await new Promise(resolve => canvas?.toBlob(resolve, 'image/jpeg', 0.9))
     if (!blob || blob.type !== 'image/jpeg' || blob.size >= file.size) return file
     return new File([blob], file.name.replace(/\.[^.]*$/, '') + '.jpg', { type: 'image/jpeg', lastModified: file.lastModified })
   } catch {
     return file
   } finally {
+    if (canvas) canvas.width = canvas.height = 0
     bitmap?.close()
   }
 }
@@ -167,38 +172,51 @@ export function initPhotoUpload(root, deps = {}) {
     if (input.disabled) return
     const files = [...(input.files ?? [])]
     if (files.length === 0) return
-    input.disabled = true
-    errors.replaceChildren()
-    errors.hidden = true
     const failures = document.createElement('ul')
     let succeeded = 0
-    for (const [index, file] of files.entries()) {
-      progress.textContent = `사진 올리는 중 ${index + 1}/${files.length}`
-      let error = '업로드하지 못했습니다'
-      try {
-        const body = new FormData()
-        body.append('photos', await resize(file))
-        const response = await send(form.action, { method: 'POST', body, headers: { Accept: 'application/json' }, credentials: 'same-origin' })
-        if (response.redirected && new URL(response.url, location.href).pathname === '/admin/login') {
-          error = '로그인이 만료되었습니다. 다시 로그인하세요.'
-        } else {
-          const result = await response.json()
-          if (response.ok && result?.ok === true) {
-            succeeded += 1
-            continue
+    input.disabled = true
+    try {
+      errors.replaceChildren()
+      errors.hidden = true
+      for (const [index, file] of files.entries()) {
+        progress.textContent = `사진 올리는 중 ${index + 1}/${files.length}`
+        let error = '업로드하지 못했습니다'
+        let loginExpired = false
+        try {
+          const body = new FormData()
+          body.append('photos', await resize(file))
+          const response = await send(form.action, { method: 'POST', body, headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+          if (response.redirected && new URL(response.url, location.href).pathname === '/admin/login') {
+            error = '로그인이 만료되었습니다. 다시 로그인하세요.'
+            loginExpired = true
+          } else {
+            const result = await response.json()
+            if (response.ok && result?.ok === true) {
+              succeeded += 1
+              continue
+            }
+            if (typeof result?.error === 'string') error = result.error
           }
-          if (typeof result?.error === 'string') error = result.error
+        } catch {
+          // 네트워크 오류나 HTML 응답도 해당 파일만 실패 처리한다.
         }
-      } catch {
-        // 네트워크 오류나 HTML 응답도 해당 파일만 실패 처리한다.
+        const item = document.createElement('li')
+        item.textContent = `${file.name}: ${error}`
+        failures.append(item)
+        if (loginExpired) {
+          for (const remaining of files.slice(index + 1)) {
+            const skipped = document.createElement('li')
+            skipped.textContent = `${remaining.name}: 로그인이 만료되어 올리지 않았습니다`
+            failures.append(skipped)
+          }
+          break
+        }
       }
-      const item = document.createElement('li')
-      item.textContent = `${file.name}: ${error}`
-      failures.append(item)
+    } finally {
+      input.value = ''
+      input.disabled = false
     }
-    input.value = ''
-    input.disabled = false
-    progress.textContent = '사진 업로드가 끝났습니다.'
+    progress.textContent = failures.childElementCount > 0 ? '일부 사진을 올리지 못했습니다.' : '사진 업로드가 끝났습니다.'
     if (failures.childElementCount === 0) {
       reload()
       return

@@ -238,6 +238,7 @@ describe('사진 자동 업로드', () => {
     expect(reload).not.toHaveBeenCalled()
     const errors = root.querySelector<HTMLElement>('[data-photo-errors]')!
     expect(errors.hidden).toBe(false)
+    expect(root.querySelector('[data-photo-progress]')!.textContent).toBe('일부 사진을 올리지 못했습니다.')
     expect(errors.textContent).toContain('b.png')
     expect(errors.textContent).toContain('<지원 불가>')
     expect(errors.textContent).toContain('2장은 올라갔습니다')
@@ -265,11 +266,126 @@ describe('사진 자동 업로드', () => {
     expect(root.querySelector('[data-photo-errors] button')).toBeNull()
   })
 
+  it('중간 로그인 만료 후 남은 파일은 전송하지 않고 건너뛴 파일을 안내한다', async () => {
+    const { root, input, select } = photoForm()
+    const login = new Response('<html>login</html>')
+    Object.defineProperties(login, { redirected: { value: true }, url: { value: 'http://localhost/admin/login' } })
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(ok()).mockResolvedValue(login)
+    const resize = vi.fn(async (file: File) => file)
+    const reload = vi.fn()
+    admin.initPhotoUpload(root, { fetch, resize, reload })
+    select(['a.png', 'b.png', 'c.png', 'd.png'])
+    await vi.waitFor(() => expect(input.disabled).toBe(false))
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(resize).toHaveBeenCalledTimes(2)
+    expect(reload).not.toHaveBeenCalled()
+    expect(root.textContent).toContain('b.png: 로그인이 만료되었습니다. 다시 로그인하세요.')
+    expect(root.textContent).toContain('c.png: 로그인이 만료되어 올리지 않았습니다')
+    expect(root.textContent).toContain('d.png: 로그인이 만료되어 올리지 않았습니다')
+    expect(root.textContent).toContain('1장은 올라갔습니다')
+    expect(root.querySelector('[data-photo-progress]')!.textContent).toBe('일부 사진을 올리지 못했습니다.')
+    expect(input.value).toBe('')
+  })
+
+  it('진행 상태 DOM 처리에서 예외가 발생해도 입력을 비우고 잠금을 해제한다', async () => {
+    const { root, input } = photoForm()
+    const listener = vi.spyOn(input, 'addEventListener')
+    const fetch = vi.fn<typeof globalThis.fetch>()
+    admin.initPhotoUpload(root, { fetch, resize: async f => f, reload: vi.fn() })
+    const handler = listener.mock.calls.find(([type]) => type === 'change')![1] as () => Promise<void>
+    Object.defineProperty(input, 'files', { value: [new File(['image'], 'a.png')] })
+    Object.defineProperty(input, 'value', { configurable: true, writable: true, value: 'C:\\fakepath\\a.png' })
+    const progress = root.querySelector('[data-photo-progress]')!
+    Object.defineProperty(progress, 'textContent', { set() { throw new Error('DOM failure') } })
+    try {
+      await expect(handler()).rejects.toThrow('DOM failure')
+      expect(input.disabled).toBe(false)
+      expect(input.value).toBe('')
+      expect(fetch).not.toHaveBeenCalled()
+    } finally { listener.mockRestore() }
+  })
+
   it('createImageBitmap이 없으면 원본을 반환한다', async () => {
     vi.stubGlobal('createImageBitmap', undefined)
     try {
       const file = new File(['image'], 'a.png', { type: 'image/png' })
       expect(await admin.resizePhoto(file)).toBe(file)
     } finally { vi.unstubAllGlobals() }
+  })
+})
+
+
+describe('resizePhoto 변환과 자원 해제', () => {
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
+
+  function imageTools(width = 3000, height = 1500) {
+    const bitmap = { width, height, close: vi.fn() }
+    const decode = vi.fn().mockResolvedValue(bitmap)
+    vi.stubGlobal('createImageBitmap', decode)
+    const context = { fillStyle: '', fillRect: vi.fn(), drawImage: vi.fn() }
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D)
+    const canvases: HTMLCanvasElement[] = []
+    const encode = vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (this: HTMLCanvasElement, callback) {
+      canvases.push(this)
+      callback(new Blob(['jpeg'], { type: 'image/jpeg' }))
+    })
+    return { bitmap, decode, context, canvases, encode }
+  }
+
+  it('흰 배경 위에 축소한 JPEG와 jpg 이름을 반환하고 canvas/bitmap을 해제한다', async () => {
+    const { bitmap, decode, context, canvases, encode } = imageTools()
+    const file = new File(['original image'], 'coffee.photo.PNG', { type: 'image/png' })
+    const result = await admin.resizePhoto(file)
+    expect(result.name).toBe('coffee.photo.jpg')
+    expect(result.type).toBe('image/jpeg')
+    expect(result.size).toBe(4)
+    expect(decode).toHaveBeenCalledWith(file, { imageOrientation: 'from-image' })
+    expect(context.fillStyle).toBe('#fff')
+    expect(context.fillRect).toHaveBeenCalledWith(0, 0, 2400, 1200)
+    expect(context.drawImage).toHaveBeenCalledWith(bitmap, 0, 0, 2400, 1200)
+    expect(context.fillRect.mock.invocationCallOrder[0]).toBeLessThan(context.drawImage.mock.invocationCallOrder[0])
+    expect(encode).toHaveBeenCalledWith(expect.any(Function), 'image/jpeg', 0.9)
+    expect(canvases[0].width).toBe(0)
+    expect(canvases[0].height).toBe(0)
+    expect(bitmap.close).toHaveBeenCalledOnce()
+  })
+
+  it.each(['larger', 'null', 'throw'] as const)('인코딩 결과가 %s이면 원본을 반환하고 자원을 해제한다', async mode => {
+    const { bitmap, encode } = imageTools()
+    let canvas: HTMLCanvasElement | undefined
+    encode.mockImplementation(function (this: HTMLCanvasElement, callback) {
+      canvas = this
+      if (mode === 'throw') throw new Error('encode failed')
+      callback(mode === 'null' ? null : new Blob(['larger than original'], { type: 'image/jpeg' }))
+    })
+    const file = new File(['original'], 'a.png')
+    expect(await admin.resizePhoto(file)).toBe(file)
+    expect(bitmap.close).toHaveBeenCalledOnce()
+    expect(canvas!.width).toBe(0)
+    expect(canvas!.height).toBe(0)
+  })
+
+  it('작은 사진은 재인코딩하지 않고 bitmap을 해제한다', async () => {
+    const { bitmap, encode } = imageTools(2400, 1200)
+    const file = new File(['small'], 'a.png')
+    expect(await admin.resizePhoto(file)).toBe(file)
+    expect(encode).not.toHaveBeenCalled()
+    expect(bitmap.close).toHaveBeenCalledOnce()
+  })
+
+  it('크기가 작아도 4MiB 초과 파일은 재인코딩한다', async () => {
+    const { bitmap, context } = imageTools(1200, 600)
+    const file = new File([new Uint8Array(4 * 1024 * 1024 + 1)], 'a.png')
+    expect((await admin.resizePhoto(file)).name).toBe('a.jpg')
+    expect(context.drawImage).toHaveBeenCalledWith(bitmap, 0, 0, 1200, 600)
+    expect(bitmap.close).toHaveBeenCalledOnce()
+  })
+
+  it('디코딩 실패 시 원본을 반환한다', async () => {
+    const { decode, encode } = imageTools()
+    decode.mockRejectedValue(new Error('decode failed'))
+    const file = new File(['original'], 'a.png')
+    expect(await admin.resizePhoto(file)).toBe(file)
+    expect(encode).not.toHaveBeenCalled()
   })
 })

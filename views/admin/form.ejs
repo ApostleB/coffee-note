@@ -70,7 +70,7 @@
           <input class="form-control coffee-grow" type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/avif" multiple required aria-label="사진 파일">
           <button class="btn btn-outline-primary text-nowrap" type="submit"><i class="bi bi-upload"></i> 업로드</button>
         </form>
-        <p data-photo-progress aria-live="polite" class="form-text"></p>
+        <p data-photo-progress aria-live="polite" class="form-text mb-0"></p>
         <div data-photo-errors class="alert alert-danger py-2" role="alert" hidden></div>
         <p class="form-text mb-3"><span data-photo-help hidden>사진을 고르면 바로 올라갑니다. 여러 장을 한 번에 골라도 됩니다. </span>대표로 지정한 사진이 카드 썸네일이 됩니다. 지정하지 않으면 첫 번째 사진을 씁니다.</p>
         <% if (entity.photos.length) { %>
