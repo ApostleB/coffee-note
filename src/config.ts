@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
-  ADMIN_PASSWORD: z.string().min(8),
+  ADMIN_PASSWORD: z.string().min(4),
   SESSION_SECRET: z.string().min(32),
   UPLOAD_DIR: z.string().default('./uploads'),
   PORT: z.coerce.number().int().positive().default(4000),

@@ -23,7 +23,7 @@ describe('loadConfig', () => {
   })
 
   it('누락되거나 짧은 값은 변수 이름을 알려준다', () => {
-    expect(() => loadConfig({ DATABASE_URL: 'x', ADMIN_PASSWORD: 'short' })).toThrow(
+    expect(() => loadConfig({ DATABASE_URL: 'x', ADMIN_PASSWORD: 'abc' })).toThrow(
       '환경변수를 확인하세요: ADMIN_PASSWORD, SESSION_SECRET',
     )
   })

@@ -32,7 +32,7 @@ coffee-note/
 |---|---|
 | `DATABASE_URL` | PostgreSQL 접속 문자열 (DB `coffee_note`) |
 | `TEST_DATABASE_URL` | 통합 테스트용 DB. 같은 DB여도 됨(테스트는 `coffee_note_test` 스키마만 사용). 없으면 DB 테스트 skip |
-| `ADMIN_PASSWORD` | 관리자 로그인 비밀번호 (8자 이상) |
+| `ADMIN_PASSWORD` | 관리자 로그인 비밀번호 (4자 이상) |
 | `SESSION_SECRET` | 관리자 쿠키 서명 키 (32자 이상) |
 | `UPLOAD_DIR` | 사진 저장 경로 (기본 `./uploads`) |
 | `PORT` | 서버 포트 (기본 4000) |
